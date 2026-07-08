@@ -65,3 +65,34 @@ launcher → scripted P1 fires → full instinct plumbing.
 ## Teammate no-show
 - FM merges the orphaned lane into the nearest lane at first standup; demo
   path re-scoped in the same standup. Issue tree is NOT re-seeded.
+
+## Tripwires & drill (D4)
+
+Scanner: `.github/workflows/tripwires.yml` → `scripts/tripwires.js`; runs
+every 10 min plus instant paths (label events, pushes). P0 → #ops
+(diagnose + fix-PR), P1 → #feed (notify). Requires the
+`DISCORD_WEBHOOK_OPS` / `DISCORD_WEBHOOK_FEED` secrets (repo-init.sh stamps
+them from env); without them it logs warnings and stays silent. Alerts
+re-nag every pass while the condition persists — silence means fixed.
+
+| Wire | Fires when | Tier |
+|---|---|---|
+| red-main | newest completed run of any workflow on main = failure | P0 |
+| panic | `needs-human` label applied (instant) + queue non-empty (re-nag) | P0 |
+| demo-freeze | any commit on main after `DEMO_FREEZE_AT` | P0 |
+| stuck-pr | PR green-but-unmerged >30m, or review check absent/queued >15m (gate-health, audit C1) | P1 |
+| stale-claim | assigned issue untouched >90m | P1 |
+| collision | two open PRs touch the same file | P1 |
+| deadlock | blocked-by cycle, or nothing ready/claimed/in-flight | P1 |
+| budget | >10 review-bot runs in the last hour | P1 |
+
+- **Panic button** = apply the `needs-human` label:
+  `gh issue edit <N> --add-label needs-human --repo <repo>` (or the issue UI).
+- **Demo freeze**: the demo owner calls it, then:
+  `gh variable set DEMO_FREEZE_AT --body "2026-07-14T20:00:00Z" --repo <repo>`
+  (UTC ISO timestamp; unset variable = tripwire dormant).
+- **Drill** (deterministic, audit C2): `scripts/drill.sh <owner/repo>` fires
+  all 8 wires through the REAL webhook path with a `[DRILL]` prefix and
+  verifies 8/8 runs green. Binary checkpoint: #ops shows exactly 3
+  `[DRILL][P0]` lines, #feed exactly 5 `[DRILL][P1]` lines. Anything else =
+  wiring broken; fix before the D5 team drill.
