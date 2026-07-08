@@ -4,8 +4,10 @@ description: Build the pitch — deck narrative + demo script timing (anyone run
 
 Build or refine the pitch for this project.
 
-1. Load `.claude/skills/pitchdeck/SKILL.md` and the pitch-kit knowledge files it
-   references under `.claude/skills/pitch-kit/`.
+1. Load `.claude/skills/pitchdeck/SKILL.md` and
+   `.claude/skills/pitch-kit/knowledge/DISTILLED.md` (the one-page sheet).
+   Open the full pitch-kit knowledge files only when a specific section
+   needs depth — the distilled sheet covers the operating rules.
 2. Inputs come from the repo, not from memory: the judging rubric extracted at
    Day-0 Stage 1, the golden-path demo flow (issues labeled `demo-path`), and
    `stack.md`.

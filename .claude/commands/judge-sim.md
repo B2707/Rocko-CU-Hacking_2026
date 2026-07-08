@@ -4,8 +4,10 @@ description: Simulate the judge panel against the current pitch + demo (submissi
 
 Run a judge simulation against the current state of the pitch and demo.
 
-1. Load `.claude/skills/judge-simulator/SKILL.md` and the pitch-kit knowledge
-   files under `.claude/skills/pitch-kit/`.
+1. Load `.claude/skills/judge-simulator/SKILL.md` and
+   `.claude/skills/pitch-kit/knowledge/DISTILLED.md` (the one-page sheet).
+   Open the full pitch-kit knowledge files only when a specific axis needs
+   depth.
 2. Build the panel from the ACTUAL event rubric (Day-0 Stage 1 extraction).
    Only fall back to `pitch-kit/knowledge/judging-criteria.md` typical weights
    if no rubric has been extracted yet — and say so in the output.
