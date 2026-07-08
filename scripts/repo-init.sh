@@ -83,7 +83,13 @@ else
   echo "    created"
 fi
 
-# --- 3. Actions secrets (from env; values never logged) -----------------------
+# --- 3. Bot environment + Actions secrets (from env; values never logged) ----
+# The claude-bot environment gates the OAuth token: only jobs declaring
+# `environment: claude-bot` (the review workflow) can read it.
+echo "==> environment: claude-bot"
+gh api -X PUT "repos/$REPO/environments/claude-bot" >/dev/null
+echo "    created/verified"
+
 if [ "$SKIP_SECRETS" = true ]; then
   echo "==> secrets: skipped (--skip-secrets)"
 else
@@ -97,7 +103,12 @@ else
       echo "    WARN: \$$name not in env — skipped (rerun after exporting it)"
     fi
   }
-  stamp_secret CLAUDE_CODE_OAUTH_TOKEN
+  if [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
+    printf '%s' "$CLAUDE_CODE_OAUTH_TOKEN" | gh secret set CLAUDE_CODE_OAUTH_TOKEN --env claude-bot --repo "$REPO"
+    echo "    set: CLAUDE_CODE_OAUTH_TOKEN (environment: claude-bot)"
+  else
+    echo "    WARN: \$CLAUDE_CODE_OAUTH_TOKEN not in env — skipped (rerun after exporting it)"
+  fi
   stamp_secret TEAM_HEARTBEAT_SECRET
   stamp_secret DISCORD_WEBHOOK_OPS
   stamp_secret DISCORD_WEBHOOK_FEED

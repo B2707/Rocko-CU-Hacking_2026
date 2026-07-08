@@ -1,0 +1,74 @@
+name: claude-review
+
+on:
+  pull_request:
+    types: [opened, ready_for_review, synchronize, labeled]
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+
+jobs:
+  review:
+    name: review
+    # Drafts and break-glass PRs skip review (a skipped required check counts
+    # as green — that IS the break-glass escape hatch). Fork PRs never reach
+    # this job: the token-bearing job must not process untrusted code, and it
+    # never executes repo code either (read-only review tools only).
+    if: >-
+      github.event.pull_request.draft == false &&
+      !contains(github.event.pull_request.labels.*.name, 'break-glass') &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    environment: claude-bot
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Claude review
+        uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: '--max-turns 30 --allowedTools "Read,Grep,Glob,Write,Bash(git diff:*),Bash(git log:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*)"'
+          prompt: |
+            You are the team's review bot for PR #${{ github.event.pull_request.number }}
+            in ${{ github.repository }}.
+
+            Review policy (hard):
+            - BLOCK only on correctness: real bugs, a broken golden path
+              (demo-path), data loss, security problems (secrets in the diff,
+              injection), or red tests that the issue brief requires.
+            - Style, naming, structure, alternative designs: comment, NEVER block.
+            - Out-of-brief scope creep: WARN comment, not a block.
+
+            Steps:
+            1. Read the change: gh pr diff ${{ github.event.pull_request.number }}
+            2. POST your review — you MUST run:
+               gh pr comment ${{ github.event.pull_request.number }} --body "<review>"
+               Findings that are not posted do not exist. Format: verdict line
+               first ("PASS" or "BLOCK: <one-line reason>"), then findings as
+               CRITICAL / WARN / NOTE bullets with file:line references.
+            3. Using the Write tool, write the single word PASS or BLOCK to a
+               file named claude-verdict.txt in the workspace root. BLOCK only
+               per the policy above.
+
+      - name: Enforce verdict
+        run: |
+          if [ ! -f claude-verdict.txt ]; then
+            echo "::warning::no verdict file produced — treating as PASS (bot must not brick merges)"
+            exit 0
+          fi
+          verdict="$(tr -d '[:space:]' < claude-verdict.txt)"
+          echo "verdict: $verdict"
+          if [ "$verdict" = "BLOCK" ]; then
+            echo "::error::review bot blocked this PR — see its PR comment for the reason"
+            exit 1
+          fi

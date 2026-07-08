@@ -14,6 +14,6 @@ Run a judge simulation against the current state of the pitch and demo.
    axis, and the top 3 fixes ranked by expected score impact.
 4. SUBMISSION GATE: this command must have been run against the FINAL deck and
    demo before the team submits. If any axis predicts 2 or lower, flag it to
-   Bader and sjp explicitly — never silently pass.
+   Bader and the demo owner explicitly — never silently pass.
 
 $ARGUMENTS

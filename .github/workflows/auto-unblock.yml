@@ -1,0 +1,41 @@
+name: auto-unblock
+
+on:
+  issues:
+    types: [closed]
+
+permissions:
+  issues: write
+
+jobs:
+  unblock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const closed = context.payload.issue.number;
+            const re = new RegExp(`blocked[ -]by[^0-9]*#${closed}\\b`, 'i');
+            const { data: blocked } = await github.rest.issues.listForRepo({
+              ...context.repo, state: 'open', labels: 'team:blocked', per_page: 100,
+            });
+            for (const issue of blocked) {
+              let hit = re.test(issue.body || '');
+              if (!hit) {
+                const { data: comments } = await github.rest.issues.listComments({
+                  ...context.repo, issue_number: issue.number, per_page: 100,
+                });
+                hit = comments.some((c) => re.test(c.body || ''));
+              }
+              if (!hit) continue;
+              await github.rest.issues.removeLabel({
+                ...context.repo, issue_number: issue.number, name: 'team:blocked',
+              }).catch(() => {});
+              await github.rest.issues.addLabels({
+                ...context.repo, issue_number: issue.number, labels: ['team:ready'],
+              });
+              await github.rest.issues.createComment({
+                ...context.repo, issue_number: issue.number,
+                body: `Auto-unblocked: blocking issue #${closed} closed. Moved to team:ready — FM re-dispatches.`,
+              });
+            }

@@ -1,5 +1,5 @@
 ---
-description: Build the pitch — deck narrative + demo script timing (owner sjp)
+description: Build the pitch — deck narrative + demo script timing (anyone runs it; demo owner has final call)
 ---
 
 Build or refine the pitch for this project.
@@ -19,7 +19,8 @@ Build or refine the pitch for this project.
 5. Write results to `docs/pitch/deck.md` and `docs/pitch/script.md` on a task
    branch and ship as a PR (`./scripts/task ship`).
 
-Ownership: sjp is demo owner — anyone may draft, sjp approves changes to
-`docs/pitch/`. Before submission, `/judge-sim` must pass on the final deck.
+Ownership: anyone can run this and draft. The demo owner (roster in CLAUDE.md)
+has final call on `docs/pitch/` and the demo freeze. Before submission,
+`/judge-sim` must pass on the final deck.
 
 $ARGUMENTS

@@ -8,8 +8,9 @@ then escalate through the channels below.
 
 - **Bader** — manager: First Mate dispatcher (T1), orchestrator (T2), triage
   (T3), night batch (T4), ops shell (T5). Escalations end at Bader.
-- **sjp** — teammate lane; also **deputy + demo owner** (owns /pitch,
-  /judge-sim, and submission).
+- **sjp** — teammate lane; currently holds the **deputy + demo owner** roles
+  (final call on demo freeze + submission). Roles are reassignable — the
+  role matters, not the name.
 - **Amr**, **Adham** — teammate lanes.
 
 Teammate seats run ONE hot agent terminal + one plain shell. Model floor: Sonnet.
@@ -22,8 +23,9 @@ Teammate seats run ONE hot agent terminal + one plain shell. Model floor: Sonnet
 - `/gotcha` — record a lesson (quarantined candidate; FM promotes).
 - `/propose` — file an idea (quarantined issue; FM triages).
 
-Pitch track (sjp owns): `/pitch` builds the deck + demo script; `/judge-sim`
-stress-tests it against the rubric and is required before submission.
+Pitch track — anyone runs these; the demo owner has final call: `/pitch`
+builds the deck + demo script; `/judge-sim` stress-tests it against the
+rubric and is required before submission.
 
 ## Hard rules (enforced by hooks and the server; violations bounce)
 

@@ -35,7 +35,7 @@ launcher → scripted P1 fires → full instinct plumbing.
 2. Verbal dispatch + whiteboard board. One named hotspot owner bridges for pushes only.
 3. On reconnect: push branches, let webhooks replay, reconcile the board.
 
-## Demo freeze (called by sjp as demo owner, ~T-2h)
+## Demo freeze (called by the demo owner, ~T-2h)
 - Only `demo-path` + `break-glass` PRs merge. All other dispatches stop.
 - Non-demo seats move to: pitch support, demo video, submission checklist, filler.
 - The golden-path E2E recording doubles as the submission video.
@@ -44,6 +44,18 @@ launcher → scripted P1 fires → full instinct plumbing.
 - Apply the `break-glass` label: review bot skips, CI gates to neutral.
 - EVERY use is announced aloud + visible in the ticker. If you're reaching
   for it twice in an hour, stop and call Bader.
+
+## Bring the review bot online (D2 verify — do these IN ORDER)
+1. Mint: `claude setup-token` (manager's Max account).
+2. Store, environment-gated: `gh secret set CLAUDE_CODE_OAUTH_TOKEN --env claude-bot --repo B2707/hackathon-team-template`
+   (repo-init.sh creates the `claude-bot` environment; rerun it if missing).
+3. Hello-world verify: open a trivial PR (e.g. touch `docs/hello.md`) → expect
+   a bot comment on the PR and a green `review` check.
+4. ONLY THEN: `scripts/enable-bot-gate.sh B2707/hackathon-team-template` —
+   makes `review` + `tests-touched` required to merge into main. A required
+   check that never reports blocks EVERY merge, so never skip step 3.
+5. Break-glass check: apply the `break-glass` label to a test PR — the checks
+   re-run as skipped (= green). That's the escape hatch working.
 
 ## Rotate a leaked secret
 - `TEAM_HEARTBEAT_SECRET`: generate new → `gh secret set` on repo(s) → update console env in Vercel → all seats update `.env`.

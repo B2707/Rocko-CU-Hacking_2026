@@ -31,5 +31,5 @@ scripts/repo-init.sh <owner>/<event-repo> --webhook-url <console-url>/api/webhoo
 - `demo-path` label goes on every golden-path issue at seeding.
 - The rubric mapping is the brief filter: an issue serving no criterion is
   `filler` at best.
-- sjp (demo owner) seeds the `track:pitch` issue set now: demo video, portal
+- The demo owner seeds the `track:pitch` issue set now: demo video, portal
   form, presenter, T-90min prep block.
