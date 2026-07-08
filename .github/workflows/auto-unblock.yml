@@ -17,7 +17,7 @@ jobs:
             const closed = context.payload.issue.number;
             const re = new RegExp(`blocked[ -]by[^0-9]*#${closed}\\b`, 'i');
             const { data: blocked } = await github.rest.issues.listForRepo({
-              ...context.repo, state: 'open', labels: 'team:blocked', per_page: 100,
+              ...context.repo, state: 'open', labels: 'blocked', per_page: 100,
             });
             for (const issue of blocked) {
               let hit = re.test(issue.body || '');
@@ -29,13 +29,13 @@ jobs:
               }
               if (!hit) continue;
               await github.rest.issues.removeLabel({
-                ...context.repo, issue_number: issue.number, name: 'team:blocked',
+                ...context.repo, issue_number: issue.number, name: 'blocked',
               }).catch(() => {});
               await github.rest.issues.addLabels({
-                ...context.repo, issue_number: issue.number, labels: ['team:ready'],
+                ...context.repo, issue_number: issue.number, labels: ['ready'],
               });
               await github.rest.issues.createComment({
                 ...context.repo, issue_number: issue.number,
-                body: `Auto-unblocked: blocking issue #${closed} closed. Moved to team:ready — FM re-dispatches.`,
+                body: `Auto-unblocked: blocking issue #${closed} closed. Moved to ready — FM re-dispatches.`,
               });
             }
