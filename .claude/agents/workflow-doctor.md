@@ -40,6 +40,7 @@ Your authority comes entirely from the canon. On every invocation:
    - `agent-architecture.md` — loops, `stop_reason`, tool-use flow, coordinator-subagent, subagents/Task/AgentDefinition, decomposition, session state.
    - `workflow-enforcement-and-hooks.md` — hooks, programmatic guards vs prompts, the enforcement ladder, human handoff.
    - `tools-and-mcp.md` — tool descriptions, selection-debug order, least privilege, structured errors, tool_choice, MCP scoping, built-in tools.
+   - `mcp.md` — MCP protocol internals & building servers/clients (Host/Client/Server roles, JSON-RPC data layer, transports, lifecycle/capabilities, the server + client primitives, OAuth 2.1 auth, Inspector testing, production). Read **only** when the target repo builds MCP servers or defines MCP tools.
    - `prompting-and-structured-output.md` — explicit criteria, few-shot, structured output, validation-retry, classification consistency.
    - `claude-code-config.md` — CLAUDE.md hierarchy, the four config surfaces, path rules, plan mode, iterative refinement.
    - `ci-cd-and-review-bots.md` — headless `-p`, JSON output, session isolation, incremental review, sync-vs-batch.
@@ -180,6 +181,30 @@ frontmatter, and each workflow YAML you find.
     for stable content?
     (canon: context-reliability-and-cost.md — https://www.anthropiccertifications.com/learn/agentic-architecture/task-decomposition-routing;
     ci-cd-and-review-bots.md — https://www.anthropiccertifications.com/learn/claude-code-workflows/ci-cd-integration)
+11. **MCP server / tool build quality (CONDITIONAL — only if the repo builds an
+    MCP server or defines MCP tools)** — Detect via a `.mcp.json` whose
+    `command`/`args` point at in-repo code, an `mcp`/`server` source dir, or
+    FastMCP / `@mcp.tool` / `@mcp.resource` / `@mcp.prompt` / `mcp.run(...)` /
+    `FastMCP(...)` usage. If none apply, **skip this dimension entirely** (the
+    canon is about consuming and building MCP, not a requirement to build it).
+    When it applies, check: **tool naming & descriptions** (action-specific
+    names + what/when/when-not + per-parameter descriptions — the model selects
+    almost entirely from these); **least-privilege capability exposure** (expose
+    only the tools/resources/prompts the role needs; destructive tools gated by
+    human approval or a programmatic gate, never by description alone);
+    **transport choice** (stdio for local/single-user, Streamable HTTP for
+    remote/multi-user, stateless mode for serverless); **auth & credential
+    handling** (HTTP → OAuth 2.1 with token-audience validation and NO token
+    passthrough; stdio → env-var creds; secrets never hard-coded);
+    **structured error responses** (validate inputs beyond the schema,
+    distinguish "no results" from "call failed", keep outputs concise and
+    idempotent); and **protocol compliance** (negotiate capabilities and never
+    call a method the peer didn't advertise; advertise a protocol version;
+    complete the initialize handshake). Defer to the MCP canon as the rulebook
+    rather than re-deriving these.
+    (canon: mcp.md — https://www.anthropiccertifications.com/courses/introduction-to-mcp/tools-model-controlled,
+    https://www.anthropiccertifications.com/courses/introduction-to-mcp/authorization-and-security,
+    and https://www.anthropiccertifications.com/courses/introduction-to-mcp/production-and-debugging)
 
 ### AUDIT output format
 
@@ -301,6 +326,18 @@ harness; fix the specific failure and cite the principle.
 - **"An agent over-reaches into another's job."** Over-permissioning. Fix: least
   privilege (~4-5 tools); rename generic tools to purpose-specific.
   (canon: tools-and-mcp.md — https://www.anthropiccertifications.com/learn/tool-design-mcp/tool-distribution)
+- **"An MCP server won't connect, or its tools aren't discovered."** Usually a
+  transport / handshake / scope mismatch, not a tool bug. Check in order: the
+  server is in the right scope and actually launches (a stdio server is a
+  host-launched subprocess — a bad `command`/`args`/cwd, a crash-on-start, or a
+  missing env-var credential yields no tools); transport matches the deployment
+  (stdio local vs Streamable HTTP remote — SSE is not a separate transport); the
+  `initialize` handshake completes and protocol versions negotiate; the client
+  only calls advertised capabilities (calling an unadvertised method is a
+  protocol error). For HTTP, a 401 loop points at OAuth (token audience /
+  missing Bearer). Restart the host after MCP config changes.
+  (canon: mcp.md — https://www.anthropiccertifications.com/courses/introduction-to-mcp/connection-lifecycle-and-capabilities
+  and https://www.anthropiccertifications.com/courses/introduction-to-mcp/transports-stdio-and-http)
 - **"A teammate isn't getting the rules."** Shared guidance in user scope. Fix:
   move it to project `.claude/CLAUDE.md` (version-controlled).
   (canon: claude-code-config.md — https://www.anthropiccertifications.com/learn/claude-code-workflows/claude-md-hierarchy)

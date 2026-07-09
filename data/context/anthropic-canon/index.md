@@ -15,11 +15,18 @@ bullet ends with the source page URL in parens so a finding can be traced back.
   Subagents, Intro to Agent Skills, and Claude Code 101 deltas).
   The CCA-F course lessons are enriched supersets of the /learn concept cards
   (same task statements, deeper mechanics); the four intro courses are
-  hierarchies /learn does not cover at all. Intro to MCP *protocol internals*
-  (JSON-RPC framing, transport lifecycle, capability negotiation) are
-  deliberately out of scope — they don't bear on auditing this harness; only the
-  MCP config/scoping/resources material relevant to the harness is distilled.
-- **Distilled:** 2026-07-08 (/learn), extended 2026-07-09 (/courses, two passes)
+  hierarchies /learn does not cover at all.
+- **MCP protocol internals — now IN scope (updated 2026-07-09):** Earlier passes
+  deliberately held the Intro to MCP *protocol internals* (architecture roles,
+  the JSON-RPC data layer, transports, connection lifecycle / capability
+  negotiation, the server & client primitives, authorization, and server/client
+  building) out of scope — the note here previously read that they "don't bear on
+  auditing this harness." Per Bader's 2026-07-09 decision to include them ("we
+  may require it even if not used currently"), the full Intro to MCP course is
+  now distilled into [mcp.md](mcp.md); the harness-side MCP config/scoping
+  material still lives in tools-and-mcp.md.
+- **Distilled:** 2026-07-08 (/learn), extended 2026-07-09 (/courses, two passes);
+  MCP protocol internals added 2026-07-09 (mcp.md)
 - **Who uses this:** the `workflow-doctor` agent (`.claude/agents/workflow-doctor.md`)
   reads these files as its rulebook — AUDIT mode checks the repo against them,
   INCIDENT mode diagnoses live problems against them. Any teammate can read them
@@ -60,6 +67,7 @@ material — weight attention there first.
 | [agent-architecture.md](agent-architecture.md) | Agentic loops, stop_reason (incl. pause_turn/refusal), loop statelessness, tool-use flow, coordinator-subagent, orchestrator-worker economics (~90.2% / ~15×) + multi-vs-single by work shape, subagents/Task/AgentDefinition + Task→Agent rename + no-nesting + exact context boundary, Claude Code subagent config (model-resolution & tool-compose order) + built-in subagents (Explore/Plan/general-purpose) + scope & precedence + design levers + anti-patterns, decomposition (fixed vs adaptive, narrow-decomposition, attention dilution, structural-vs-capability), multi-step orchestration, session state (resume/fork/from-pr, stale-context trap) | Architecture (27%) |
 | [workflow-enforcement-and-hooks.md](workflow-enforcement-and-hooks.md) | Hooks (PreToolUse blocks / PostToolUse reshapes, exit codes, fail-open, taxonomy), programmatic guards vs prompts, the enforcement ladder, state machines, structured human handoff | Architecture (27%) |
 | [tools-and-mcp.md](tools-and-mcp.md) | Tool interface/description design, selection-reliability debug order, distribution & least privilege + tool profiles (research/reviewer/modifier), structured errors, error recovery/retry, tool_choice, MCP scoping + HTTP transport, community-vs-custom, built-in tools (Edit-anchor order) | Tools & MCP (18%) |
+| [mcp.md](mcp.md) | MCP protocol internals & building servers/clients (Intro to MCP course): Host/Client/Server roles + end-to-end request flow, JSON-RPC data layer, stdio vs Streamable HTTP transports (SSE-is-not-a-transport), connection lifecycle & capability negotiation, the three server primitives (tools/resources/prompts) + three client primitives (sampling/elicitation/logging), OAuth 2.1 authorization (token-audience, no passthrough, PKCE), Python-SDK build + MCP Inspector testing, production hardening, consuming MCP in Claude Desktop/Code | Tools & MCP (18%) |
 | [prompting-and-structured-output.md](prompting-and-structured-output.md) | Explicit criteria over vague, specificity, classification consistency / false positives, few-shot, input-output examples, structured output via tool-use/JSON schema, tool_choice, validation-retry | Prompting (20%) |
 | [claude-code-config.md](claude-code-config.md) | CLAUDE.md hierarchy & precedence (+ CLAUDE.local, concatenation semantics, delivery-as-user-message), modular @import, .claude/rules path globs, the four config surfaces (CLAUDE.md/skills/commands/hooks) + commands↔skills equivalence, skills progressive disclosure / trigger engineering / troubleshooting / invocation control (allowed-tools grants, disable-model-invocation, user-invocable, Skill() rules) / lifecycle & compaction / multi-file structure / dynamic !command injection / skills×subagents wiring, plan mode vs direct, iterative refinement / TDD / interview | Config (20%) |
 | [ci-cd-and-review-bots.md](ci-cd-and-review-bots.md) | Headless `-p`, structured JSON output, session isolation, incremental review, test-gen quality, multi-instance review, batch-vs-sync cost decision | Config (20%) + Prompting |
