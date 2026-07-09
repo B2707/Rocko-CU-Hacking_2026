@@ -3,9 +3,11 @@ name: pitch-kit
 description: >-
   Shared hackathon pitch and judging knowledge pack: judging criteria and
   weights, winning patterns, demo psychology, pitch strategy, submission
-  guidelines, and the pitch deck outline template. Load when preparing the
-  pitch, demo, judge simulation, or submission.
+  guidelines, and the pitch deck outline template. Passive reference pack —
+  loaded by path from the pitchdeck, judge-simulator, and submission-prep
+  skills and the /pitch and /judge-sim commands; it is not a task itself.
 allowed-tools: Read, Write, Edit, Glob, Grep
+disable-model-invocation: true
 ---
 # pitch-kit
 

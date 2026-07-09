@@ -188,6 +188,8 @@ last_mile_actions:
 
 ## Context Files
 
+Load `../pitch-kit/knowledge/DISTILLED.md` **first** — the one-page summary of the knowledge base below. Open the full files only when a specific section needs depth.
+
 ### Knowledge Base
 
 - `../pitch-kit/knowledge/submission-guidelines.md`

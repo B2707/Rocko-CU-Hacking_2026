@@ -47,7 +47,11 @@ launcher → scripted P1 fires → full instinct plumbing.
 
 ## Break-glass contacts
 - **Vercel / Upstash / Discord / GitHub admin:** Bader (holds every root credential).
-- **SECOND RESPONDER:** TBD-by-Bader _(placeholder — name a backup before the event)_.
+- **No standing deputy** (4-person event, deliberate): build-blocking P0s are
+  self-serve — any seat can apply the `break-glass` label to merge, or run the
+  red-main revert above. Bader-only items (secret rotation, console redeploy)
+  are rare and off the build path; if Bader is unreachable the console degrades
+  gracefully and the team keeps shipping via GitHub.
 - Recovery fact: `TEAM_HEARTBEAT_SECRET` is recoverable via `vercel env pull`
   from the linked hackathon-console clone.
 

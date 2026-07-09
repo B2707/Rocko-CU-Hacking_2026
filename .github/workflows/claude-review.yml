@@ -41,7 +41,7 @@ jobs:
           # Explicit token skips the OIDC/GitHub-App exchange — no dependency
           # on the Claude GitHub App being installed on the repo.
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          claude_args: '--max-turns 30 --allowedTools "Read,Grep,Glob,Write,Bash(git diff:*),Bash(git log:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*)"'
+          claude_args: '--max-turns 30 --max-budget-usd 5 --allowedTools "Read,Grep,Glob,Write,Bash(git diff:*),Bash(git log:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*)"'
           prompt: |
             You are the team's review bot for PR #${{ github.event.pull_request.number }}
             in ${{ github.repository }}.
@@ -91,7 +91,13 @@ jobs:
           fi
           verdict="$(tr -d '[:space:]' < claude-verdict.txt)"
           echo "verdict: $verdict"
-          if [ "$verdict" = "BLOCK" ]; then
-            echo "::error::review bot blocked this PR — see its PR comment for the reason"
-            exit 1
-          fi
+          # Prefix match, not exact "=": step 3 tells the model to format the
+          # verdict as "BLOCK: <reason>", and that format can bleed into this
+          # file. An exact check would read "BLOCK:dropslastrow" as not-BLOCK
+          # and silently pass a PR the bot meant to block.
+          case "$verdict" in
+            BLOCK*)
+              echo "::error::review bot blocked this PR — see its PR comment for the reason"
+              exit 1
+              ;;
+          esac

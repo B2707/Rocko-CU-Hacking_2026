@@ -6,7 +6,7 @@
 #   2. Splices matching rule packs from data/rules-library/ into CLAUDE.md
 #      between stack-rules markers. Idempotent — restamp after editing
 #      stack.md; never edit the stamped block by hand.
-#   3. --verify: proves the type tripwire catches a deliberate violation.
+#   3. --verify: proves the post-write eslint hook catches a deliberate violation.
 #
 # Pack detection keys on stack.md text: typescript/ts/node/next -> typescript;
 # react/next -> react; python/fastapi/django/flask -> python; the literal word
@@ -86,25 +86,31 @@ echo
 
 # --- hook auto-activation reminder ---------------------------------------------
 echo "==> auto-activates on its own (scripts/hooks/post-write-check.js):"
-echo "    - tsc --noEmit on every .ts/.tsx edit once tsconfig.json exists"
 echo "    - eslint on every JS/TS edit once an eslint config exists"
+echo "    (types are enforced by the required CI build-test check, not at edit time)"
 echo
 
-# --- --verify: prove the type tripwire bites -----------------------------------
+# --- --verify: prove the post-write eslint hook bites --------------------------
 if $VERIFY; then
-  echo "==> verify: type tripwire vs a deliberate violation"
-  if [[ -f tsconfig.json && -e node_modules/.bin/tsc ]]; then
-    probe=".stack-stamp-probe.$$.ts"
-    echo 'const brokenProbe: number = "not a number"' > "$probe"
-    if npx --no-install tsc --noEmit "$probe" >/dev/null 2>&1; then
+  echo "==> verify: post-write eslint hook vs a deliberate violation"
+  hook="scripts/hooks/post-write-check.js"
+  have_cfg=false
+  for c in eslint.config.js eslint.config.mjs eslint.config.cjs .eslintrc .eslintrc.js .eslintrc.cjs .eslintrc.json; do
+    [[ -f "$c" ]] && have_cfg=true && break
+  done
+  if [[ -e node_modules/.bin/eslint ]] && $have_cfg; then
+    probe="$PWD/.stack-stamp-probe.$$.js"
+    printf 'function( {\n' > "$probe"   # syntax error — flagged by any eslint config
+    payload="$(printf '{"tool_input":{"file_path":"%s"},"cwd":"%s"}' "$probe" "$PWD")"
+    if CLAUDE_PROJECT_DIR="$PWD" printf '%s' "$payload" | node "$hook" >/dev/null 2>&1; then
       rm -f "$probe"
-      echo "    FAIL: tsc did NOT flag the violation — investigate before trusting the hook" >&2
+      echo "    FAIL: post-write hook did NOT flag the violation — investigate before trusting it" >&2
       exit 1
     fi
     rm -f "$probe"
-    echo "    PASS: tsc catches type violations"
+    echo "    PASS: post-write eslint hook catches violations (exit 2)"
   else
-    echo "    SKIP: no tsconfig.json + node_modules yet (expected before scaffold)"
+    echo "    SKIP: no eslint config + node_modules yet (expected before scaffold)"
   fi
   echo
 fi

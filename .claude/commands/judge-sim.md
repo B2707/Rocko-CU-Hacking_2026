@@ -1,5 +1,5 @@
 ---
-description: Simulate the judge panel against the current pitch + demo (submission gate)
+description: Simulate the judge panel against the current pitch + demo (pre-submission check)
 ---
 
 Run a judge simulation against the current state of the pitch and demo.
@@ -14,8 +14,10 @@ Run a judge simulation against the current state of the pitch and demo.
 3. Evaluate `docs/pitch/` and the golden-path demo flow. Produce: adversarial
    questions with rebuttals, critical objections, predicted 1–5 scores per
    axis, and the top 3 fixes ranked by expected score impact.
-4. SUBMISSION GATE: this command must have been run against the FINAL deck and
-   demo before the team submits. If any axis predicts 2 or lower, flag it to
-   Bader and the demo owner explicitly — never silently pass.
+4. PRE-SUBMISSION CHECK (advisory — a prose reminder, not a hard gate:
+   submission happens on an external platform the harness can't intercept):
+   run this against the FINAL deck and demo before the team submits. If any
+   axis predicts 2 or lower, flag it to Bader and the demo owner explicitly —
+   never silently pass.
 
 $ARGUMENTS

@@ -36,5 +36,11 @@ function main(input) {
 let raw = '';
 process.stdin.on('data', (chunk) => { raw += chunk; });
 process.stdin.on('end', () => {
-  try { main(JSON.parse(raw)); } catch { process.exit(0); }
+  try { main(JSON.parse(raw)); }
+  catch (err) {
+    // Fail open, but record WHY. Lazy-require so a broken logger can't break
+    // this hook.
+    try { require('./hook-log').logHookError('session-end-gotcha', err); } catch { /* best-effort */ }
+    process.exit(0);
+  }
 });

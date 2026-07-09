@@ -64,5 +64,12 @@ function main(input) {
 let raw = '';
 process.stdin.on('data', (chunk) => { raw += chunk; });
 process.stdin.on('end', () => {
-  try { main(JSON.parse(raw)); } catch { process.exit(0); }
+  try { main(JSON.parse(raw)); }
+  catch (err) {
+    // Fail open (never brick a seat), but record WHY — a silent exit here
+    // would hide a disabled gate. Lazy-require so a broken logger can't
+    // disable this gate's main path.
+    try { require('./hook-log').logHookError('bash-guard', err); } catch { /* best-effort */ }
+    process.exit(0);
+  }
 });

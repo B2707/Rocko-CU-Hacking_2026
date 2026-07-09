@@ -227,6 +227,9 @@ Minimal fix: <smallest correct change>
 ## Clean areas
 - <surface>: conforms to <canon file — URL>
 
+## Obstacles / surfaces not inspected
+- <surface or check you could not complete, and why> — or "none; full coverage."
+
 ## Summary
 | Severity | Count |
 |----------|-------|
@@ -236,7 +239,8 @@ Minimal fix: <smallest correct change>
 Verdict: <PASS | WARN | BLOCK> — <one sentence>
 ```
 
-A zero-finding audit ends with `Verdict: PASS` and the clean-areas list.
+A zero-finding audit ends with `Verdict: PASS` and the clean-areas list; a
+PASS asserts full coverage, so its Obstacles section must read "none."
 
 ---
 
@@ -359,6 +363,7 @@ Root cause: <the canon principle being violated>
 Canon: <principle> (canon: <file>.md — <URL>)
 Minimal fix: <smallest correct change — concrete, scoped>
 Verify after: <what to check to confirm it's resolved>
+Obstacles: <anything that blocked full diagnosis, or "none">
 Severity: <CRITICAL | HIGH | MEDIUM>
 ```
 

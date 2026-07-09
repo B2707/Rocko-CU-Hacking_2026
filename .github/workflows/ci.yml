@@ -4,6 +4,10 @@ on:
   pull_request:
     types: [opened, ready_for_review, synchronize, labeled, unlabeled]
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -63,3 +67,20 @@ jobs:
           else
             echo "no test script — pass"
           fi
+
+  hooks-test:
+    name: hooks-test
+    # Proves the PreToolUse gates (bash-guard, fact-gate) actually deny. Hooks
+    # fail open, so a silently-broken gate would otherwise pass unnoticed. Pure
+    # node, no deps — always runs; informative (not in the required-checks set).
+    if: >-
+      github.event.pull_request.draft == false &&
+      !contains(github.event.pull_request.labels.*.name, 'break-glass')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Prove the gate hooks deny (fail-open regression guard)
+        run: bash scripts/test-hooks.sh

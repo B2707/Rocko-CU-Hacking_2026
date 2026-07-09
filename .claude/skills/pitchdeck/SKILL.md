@@ -1,8 +1,9 @@
 ---
 name: pitchdeck
 description: >-
-  Construct a complete hackathon pitch deck narrative with slide content, speaker notes, and judging alignment.
+  Construct a complete hackathon pitch deck narrative with slide content, speaker notes, and judging alignment. Invoked via the /pitch command (which adds the team demo-timing rules + ship-as-PR step) — not auto-triggered.
 allowed-tools: Read, Write, Edit, Glob, Grep
+disable-model-invocation: true
 ---
 # pitchdeck
 
@@ -172,6 +173,8 @@ judging_alignment:
 ---
 
 ## Context Files
+
+Load `../pitch-kit/knowledge/DISTILLED.md` **first** — the one-page summary of the knowledge base below. Open the full files only when a specific section needs depth.
 
 ### Knowledge Base
 

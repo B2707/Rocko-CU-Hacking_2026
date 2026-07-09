@@ -42,9 +42,14 @@ function main(input) {
 
   // No tsc here on purpose — types are covered by the required CI build-test
   // check; this hook stays fast with per-file eslint only (see header note).
-  const hasEslint = ESLINT_CONFIGS.some((name) => fs.existsSync(path.join(projectDir, name)));
-  if (hasEslint && LINT_EXTS.has(ext)) {
-    const result = run('npx', ['--no-install', 'eslint', filePath], projectDir);
+  // Require the local eslint BINARY, not just a config: on a fresh clone the
+  // config exists before `npm install`, and `npx --no-install eslint` would
+  // then exit non-zero with a bootstrap error we'd mislabel as a lint failure.
+  // Invoke the resolved binary directly and fail open when it's absent.
+  const eslintBin = path.join(projectDir, 'node_modules', '.bin', 'eslint');
+  const hasEslintConfig = ESLINT_CONFIGS.some((name) => fs.existsSync(path.join(projectDir, name)));
+  if (hasEslintConfig && fs.existsSync(eslintBin) && LINT_EXTS.has(ext)) {
+    const result = run(eslintBin, [filePath], projectDir);
     if (result) failures.push(`eslint failed:\n${result}`);
   }
 
@@ -58,5 +63,12 @@ function main(input) {
 let raw = '';
 process.stdin.on('data', (chunk) => { raw += chunk; });
 process.stdin.on('end', () => {
-  try { main(JSON.parse(raw)); } catch { process.exit(0); }
+  try { main(JSON.parse(raw)); }
+  catch (err) {
+    // Fail open (never brick a seat), but record WHY — a silent exit here
+    // would hide a broken check. Lazy-require so a broken logger can't disable
+    // this hook's main path.
+    try { require('./hook-log').logHookError('post-write-check', err); } catch { /* best-effort */ }
+    process.exit(0);
+  }
 });

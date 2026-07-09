@@ -1,8 +1,10 @@
 ---
 name: judge-simulator
 description: >-
-  Simulate a panel of hackathon judges to generate adversarial questions, objections, and predicted scores for pitch hardening.
+  Simulate a panel of hackathon judges to generate adversarial questions, objections, and predicted scores for pitch hardening. Invoked via the /judge-sim command — not auto-triggered.
 allowed-tools: Read, Write, Edit, Glob, Grep
+disable-model-invocation: true
+context: fork
 ---
 # judge-simulator
 
@@ -183,6 +185,8 @@ pitch_improvements:
 ---
 
 ## Context Files
+
+Load `../pitch-kit/knowledge/DISTILLED.md` **first** — the one-page summary of the knowledge base below. Open the full files only when a specific axis needs depth.
 
 ### Knowledge Base
 
