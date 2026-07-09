@@ -14,7 +14,7 @@ const STATE_DIR = path.join(os.tmpdir(), 'team-os-gate');
 const CODE_EXTS = new Set([
   '.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx', '.py', '.go', '.rs', '.rb',
   '.java', '.kt', '.swift', '.c', '.cc', '.cpp', '.h', '.hpp', '.css',
-  '.scss', '.html', '.vue', '.svelte', '.sh', '.sql', '.json', '.yml', '.yaml',
+  '.scss', '.html', '.vue', '.svelte', '.sh', '.sql',
 ]);
 const SKIP_PREFIXES = ['data/context/'];
 

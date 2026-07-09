@@ -1,5 +1,6 @@
 ---
 description: File an idea or out-of-brief discovery (quarantined, FM triages)
+allowed-tools: Bash
 ---
 Run `./scripts/task propose $ARGUMENTS` (compose a crisp title if the
 argument is rough).

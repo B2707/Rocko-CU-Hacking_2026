@@ -61,6 +61,8 @@ rubric and is required before submission.
   `filler` issue. A stuck human is a P0 — the FM will notice or be told.
 - `data/context/` is the team brain. `/start` loads what you need; do not
   paste whole memory files into context.
+- Long session? Externalize findings to files and `/compact` at phase
+  boundaries — stale context lies.
 
 ## Escalation ends at humans
 

@@ -2,6 +2,7 @@
 name: judge-simulator
 description: >-
   Simulate a panel of hackathon judges to generate adversarial questions, objections, and predicted scores for pitch hardening.
+allowed-tools: Read, Write, Edit, Glob, Grep
 ---
 # judge-simulator
 

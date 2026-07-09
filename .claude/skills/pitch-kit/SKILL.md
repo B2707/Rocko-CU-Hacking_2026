@@ -5,6 +5,7 @@ description: >-
   weights, winning patterns, demo psychology, pitch strategy, submission
   guidelines, and the pitch deck outline template. Load when preparing the
   pitch, demo, judge simulation, or submission.
+allowed-tools: Read, Write, Edit, Glob, Grep
 ---
 # pitch-kit
 

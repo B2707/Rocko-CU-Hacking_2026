@@ -1,5 +1,6 @@
 ---
 description: Record a lesson the team should know (quarantined candidate)
+allowed-tools: Bash
 ---
 Run `./scripts/task gotcha $ARGUMENTS`.
 

@@ -53,14 +53,33 @@ jobs:
             - Style, naming, structure, alternative designs: comment, NEVER block.
             - Out-of-brief scope creep: WARN comment, not a block.
 
+            Judge on absolute criteria, never relative to this PR's average quality.
+
+            Severity examples (calibrate to these; keep findings this concrete):
+            - CRITICAL (BLOCK): a committed secret such as
+              `const KEY = "sk-live-abc123"`; or an off-by-one that drops the
+              last row on the demo path, e.g. `for (i = 0; i < n - 1; i++)`.
+            - WARN (never blocks): out-of-brief scope creep, e.g. editing
+              `utils/date.ts` when the brief scoped only `checkout.ts`; or a
+              swallowed error like `catch (e) {}`.
+            - NOTE (never blocks): a nit like `let total = 0` that is never
+              reassigned (prefer `const`); or a vague name like `function h()`.
+
             Steps:
             1. Read the change: gh pr diff ${{ github.event.pull_request.number }}
-            2. POST your review — you MUST run:
-               gh pr comment ${{ github.event.pull_request.number }} --body "<review>"
+            2. Incremental review — fetch your own prior comments first:
+               gh pr view ${{ github.event.pull_request.number }} --json comments
+               If you already reviewed this PR, report ONLY findings that are new
+               or still unaddressed since your last comment — do not re-list
+               items that are now fixed or unchanged-and-already-noted.
+            3. POST your review as a SINGLE comment — you MUST run:
+               gh pr comment ${{ github.event.pull_request.number }} --edit-last --create-if-none --body "<review>"
+               This updates your existing review comment in place (or creates it
+               on the first pass) instead of stacking a new comment each run.
                Findings that are not posted do not exist. Format: verdict line
                first ("PASS" or "BLOCK: <one-line reason>"), then findings as
                CRITICAL / WARN / NOTE bullets with file:line references.
-            3. Using the Write tool, write the single word PASS or BLOCK to a
+            4. Using the Write tool, write the single word PASS or BLOCK to a
                file named claude-verdict.txt in the workspace root. BLOCK only
                per the policy above.
 

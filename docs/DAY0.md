@@ -5,7 +5,7 @@ as humans through Stage 3. Rehearsed once in the D5 drill.
 
 | Clock | Stage | What happens |
 |-------|-------|--------------|
-| 0:00 | Inputs | Read event rules + tracks; EXTRACT THE JUDGING RUBRIC — criteria become the scoring frame for everything below |
+| 0:00 | Inputs | Read event rules + tracks; fill in [`docs/COMPLIANCE.md`](./COMPLIANCE.md) (5-item rules checklist); EXTRACT THE JUDGING RUBRIC — criteria become the scoring frame for everything below |
 | 0:10 | Generate | T2 runs parallel idea-gen agents seeded with tracks/rubric/team skills → 10–15 raw ideas |
 | 0:25 | Kill fast | Per idea, 3 parallel filters — dies on failing 2 of 3: (a) product-lens "why" check, (b) has-it-been-done search (GitHub + past winners), (c) demo-wow: is the demo inherently captivating? → 2–3 finalists |
 | 0:40 | Decide | Council (4-voice structured disagreement) on finalists; Bader + team make the human call (5-min-debate rule) → ONE idea + one named fallback |

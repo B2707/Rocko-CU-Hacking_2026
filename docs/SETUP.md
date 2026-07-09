@@ -5,6 +5,7 @@
   never a shared account)
 - `gh` CLI authenticated (`gh auth login`)
 - node ≥ 20
+- `codex` CLI for `/consensus` (`npm i -g @openai/codex`, then `codex login`)
 
 ## Steps
 

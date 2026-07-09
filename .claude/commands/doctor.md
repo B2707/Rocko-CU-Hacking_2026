@@ -1,5 +1,6 @@
 ---
 description: Verify this seat is ready — auth, versions, hooks, config parity
+allowed-tools: Bash
 ---
 Run `./scripts/task doctor` and show the user the output verbatim.
 

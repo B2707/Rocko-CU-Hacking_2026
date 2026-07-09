@@ -1,6 +1,7 @@
 ---
 description: Plan with the planning model, reach consensus with Codex (≤5 rounds), Codex executes, then cross-model review of the diff
 argument-hint: <feature or task description>
+allowed-tools: Bash, Read, Write
 ---
 
 # /consensus — cross-model plan → execute → review
@@ -58,6 +59,17 @@ TMP="$(mktemp -d)"
 
 **Task:** $ARGUMENTS
 
+### Phase 0 — Preflight  `[Mode: Preflight]`
+
+Codex is both the critic and the executor — this command is inert without it.
+Verify it is installed AND authenticated before doing anything else:
+```bash
+command -v codex >/dev/null 2>&1 || { echo "STOP: codex CLI not found — install it (npm i -g @openai/codex), then run 'codex login' (see docs/SETUP.md)"; exit 1; }
+codex login status >/dev/null 2>&1 || { echo "STOP: codex is installed but not authenticated — run 'codex login', then rerun /consensus"; exit 1; }
+```
+If either check fails, STOP and tell the user exactly which command to run. Do
+not fall through to planning — every later phase depends on Codex.
+
 ### Phase 1 — Plan  `[Mode: Plan]`
 
 The planning model drafts a tight implementation plan for **$ARGUMENTS**.
@@ -85,8 +97,16 @@ Repeat up to **5** times:
 
    codex exec --sandbox read-only -m gpt-5.4 -C "$(pwd)" \
      -o "$TMP/critique.txt" - < "$TMP/critic-prompt.txt"
+   status=$?
+   if [ "$status" -ne 0 ] || [ ! -s "$TMP/critique.txt" ]; then
+     echo "ERROR: codex critic failed (exit $status) or returned empty output."
+     echo "Surface this to the user and STOP — never treat a failed/empty critique as CONSENSUS."
+     exit 1
+   fi
    ```
-3. If the critique is standalone consensus, break the loop:
+3. If the critique is standalone consensus, break the loop (only reachable when
+   the critic ran cleanly and produced output — the guard above already bailed
+   on any failure or empty file):
    ```bash
    grep -qx 'CONSENSUS' "$TMP/critique.txt" && echo "CONSENSUS REACHED"
    ```
@@ -117,9 +137,14 @@ cat "$TMP/plan.md"; } > "$TMP/exec-prompt.txt"
 
 codex exec --sandbox workspace-write -m gpt-5.4 -C "$(pwd)" \
   -o "$TMP/exec-summary.txt" - < "$TMP/exec-prompt.txt"
+status=$?
+if [ "$status" -ne 0 ] || [ ! -s "$TMP/exec-summary.txt" ]; then
+  echo "ERROR: codex executor failed (exit $status) or produced no summary — surface this, never assume the code landed."
+fi
 ```
-Report Codex's summary (`$TMP/exec-summary.txt`). If Codex fails mid-way, report the
-state; **retry at most once**, then stop and hand back to the user.
+Report Codex's summary (`$TMP/exec-summary.txt`). If Codex fails mid-way (nonzero
+exit or empty summary as flagged above), report the state; **retry at most
+once**, then stop and hand back to the user.
 
 ### Phase 4 — Review  `[Mode: Review]`  (planning model, cross-model)
 

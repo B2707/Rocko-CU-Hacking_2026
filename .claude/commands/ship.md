@@ -1,5 +1,6 @@
 ---
 description: Ship the current task — rebase, verify, open PR (draft if red)
+allowed-tools: Bash
 ---
 Run `./scripts/task ship` from the task worktree and show the user the output.
 

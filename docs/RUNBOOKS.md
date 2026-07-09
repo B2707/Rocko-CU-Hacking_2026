@@ -45,6 +45,12 @@ launcher → scripted P1 fires → full instinct plumbing.
 - EVERY use is announced aloud + visible in the ticker. If you're reaching
   for it twice in an hour, stop and call Bader.
 
+## Break-glass contacts
+- **Vercel / Upstash / Discord / GitHub admin:** Bader (holds every root credential).
+- **SECOND RESPONDER:** TBD-by-Bader _(placeholder — name a backup before the event)_.
+- Recovery fact: `TEAM_HEARTBEAT_SECRET` is recoverable via `vercel env pull`
+  from the linked hackathon-console clone.
+
 ## Bring the review bot online (D2 verify — do these IN ORDER)
 1. Mint: `claude setup-token` (manager's Max account).
 2. Store, environment-gated: `gh secret set CLAUDE_CODE_OAUTH_TOKEN --env claude-bot --repo B2707/hackathon-team-template`

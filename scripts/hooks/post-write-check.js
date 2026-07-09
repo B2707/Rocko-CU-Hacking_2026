@@ -1,15 +1,17 @@
 #!/usr/bin/env node
-// PostToolUse[Edit|Write] checks — deliberately a no-op until the stack is
-// stamped: tsc runs only when tsconfig.json exists at the repo root, eslint
-// only when an eslint config exists. Failures feed back to the agent (exit 2);
-// missing tools and timeouts fail open.
+// PostToolUse[Edit|Write] check — eslint per-file only, and only once an
+// eslint config exists at the repo root (a no-op until the stack is stamped).
+// Type-checking is deliberately NOT run here: a whole-project `tsc --noEmit`
+// on every edit is too slow for per-file feedback, and a file-scoped tsc can't
+// resolve project types reliably — so types are enforced by the required CI
+// build-test check instead. Failures feed back to the agent (exit 2); missing
+// tools and timeouts fail open.
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
-const TS_EXTS = new Set(['.ts', '.tsx']);
 const LINT_EXTS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs']);
 const ESLINT_CONFIGS = [
   'eslint.config.js', 'eslint.config.mjs', 'eslint.config.cjs',
@@ -38,12 +40,8 @@ function main(input) {
   const ext = path.extname(filePath).toLowerCase();
   const failures = [];
 
-  const hasTsconfig = fs.existsSync(path.join(projectDir, 'tsconfig.json'));
-  if (hasTsconfig && TS_EXTS.has(ext)) {
-    const result = run('npx', ['--no-install', 'tsc', '--noEmit', '--pretty', 'false'], projectDir);
-    if (result) failures.push(`tsc --noEmit failed:\n${result}`);
-  }
-
+  // No tsc here on purpose — types are covered by the required CI build-test
+  // check; this hook stays fast with per-file eslint only (see header note).
   const hasEslint = ESLINT_CONFIGS.some((name) => fs.existsSync(path.join(projectDir, name)));
   if (hasEslint && LINT_EXTS.has(ext)) {
     const result = run('npx', ['--no-install', 'eslint', filePath], projectDir);

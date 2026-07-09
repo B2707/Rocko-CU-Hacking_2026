@@ -2,6 +2,7 @@
 name: submission-prep
 description: >-
   Compile and validate all hackathon submission artifacts into a complete, polished package ready for platform upload.
+allowed-tools: Read, Write, Edit, Glob, Grep
 ---
 # submission-prep
 
