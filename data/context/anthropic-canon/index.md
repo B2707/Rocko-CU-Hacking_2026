@@ -10,11 +10,16 @@ bullet ends with the source page URL in parens so a finding can be traced back.
   library, 44 pages, distilled 2026-07-08) and
   https://www.anthropiccertifications.com/courses (5 courses / ~105 lessons —
   Claude Code 101, Intro to MCP, Intro to Subagents, Intro to Agent Skills, and
-  the CCA-F Foundations course; new-material lessons distilled 2026-07-09).
+  the CCA-F Foundations course; new-material lessons distilled 2026-07-09 over
+  two passes — the second closing the remaining CCA-F architect, Intro to
+  Subagents, Intro to Agent Skills, and Claude Code 101 deltas).
   The CCA-F course lessons are enriched supersets of the /learn concept cards
   (same task statements, deeper mechanics); the four intro courses are
-  hierarchies /learn does not cover at all.
-- **Distilled:** 2026-07-08 (/learn), extended 2026-07-09 (/courses)
+  hierarchies /learn does not cover at all. Intro to MCP *protocol internals*
+  (JSON-RPC framing, transport lifecycle, capability negotiation) are
+  deliberately out of scope — they don't bear on auditing this harness; only the
+  MCP config/scoping/resources material relevant to the harness is distilled.
+- **Distilled:** 2026-07-08 (/learn), extended 2026-07-09 (/courses, two passes)
 - **Who uses this:** the `workflow-doctor` agent (`.claude/agents/workflow-doctor.md`)
   reads these files as its rulebook — AUDIT mode checks the repo against them,
   INCIDENT mode diagnoses live problems against them. Any teammate can read them
@@ -52,10 +57,10 @@ material — weight attention there first.
 
 | File | Covers | Primary domain |
 |---|---|---|
-| [agent-architecture.md](agent-architecture.md) | Agentic loops, stop_reason (incl. pause_turn/refusal), loop statelessness, tool-use flow, coordinator-subagent, subagents/Task/AgentDefinition, Claude Code subagent config files + design levers + anti-patterns, decomposition (fixed vs adaptive, narrow-decomposition, attention dilution), multi-step orchestration, session state | Architecture (27%) |
+| [agent-architecture.md](agent-architecture.md) | Agentic loops, stop_reason (incl. pause_turn/refusal), loop statelessness, tool-use flow, coordinator-subagent, orchestrator-worker economics (~90.2% / ~15×) + multi-vs-single by work shape, subagents/Task/AgentDefinition + Task→Agent rename + no-nesting + exact context boundary, Claude Code subagent config (model-resolution & tool-compose order) + built-in subagents (Explore/Plan/general-purpose) + scope & precedence + design levers + anti-patterns, decomposition (fixed vs adaptive, narrow-decomposition, attention dilution, structural-vs-capability), multi-step orchestration, session state (resume/fork/from-pr, stale-context trap) | Architecture (27%) |
 | [workflow-enforcement-and-hooks.md](workflow-enforcement-and-hooks.md) | Hooks (PreToolUse blocks / PostToolUse reshapes, exit codes, fail-open, taxonomy), programmatic guards vs prompts, the enforcement ladder, state machines, structured human handoff | Architecture (27%) |
-| [tools-and-mcp.md](tools-and-mcp.md) | Tool interface/description design, selection-reliability debug order, distribution & least privilege, structured errors, error recovery/retry, tool_choice, MCP scoping, community-vs-custom, built-in tools | Tools & MCP (18%) |
+| [tools-and-mcp.md](tools-and-mcp.md) | Tool interface/description design, selection-reliability debug order, distribution & least privilege + tool profiles (research/reviewer/modifier), structured errors, error recovery/retry, tool_choice, MCP scoping + HTTP transport, community-vs-custom, built-in tools (Edit-anchor order) | Tools & MCP (18%) |
 | [prompting-and-structured-output.md](prompting-and-structured-output.md) | Explicit criteria over vague, specificity, classification consistency / false positives, few-shot, input-output examples, structured output via tool-use/JSON schema, tool_choice, validation-retry | Prompting (20%) |
-| [claude-code-config.md](claude-code-config.md) | CLAUDE.md hierarchy & precedence, modular @import, .claude/rules path globs, the four config surfaces (CLAUDE.md/skills/commands/hooks), skills progressive disclosure / trigger engineering / troubleshooting, plan mode vs direct, iterative refinement / TDD / interview | Config (20%) |
+| [claude-code-config.md](claude-code-config.md) | CLAUDE.md hierarchy & precedence (+ CLAUDE.local, concatenation semantics, delivery-as-user-message), modular @import, .claude/rules path globs, the four config surfaces (CLAUDE.md/skills/commands/hooks) + commands↔skills equivalence, skills progressive disclosure / trigger engineering / troubleshooting / invocation control (allowed-tools grants, disable-model-invocation, user-invocable, Skill() rules) / lifecycle & compaction / multi-file structure / dynamic !command injection / skills×subagents wiring, plan mode vs direct, iterative refinement / TDD / interview | Config (20%) |
 | [ci-cd-and-review-bots.md](ci-cd-and-review-bots.md) | Headless `-p`, structured JSON output, session isolation, incremental review, test-gen quality, multi-instance review, batch-vs-sync cost decision | Config (20%) + Prompting |
 | [context-reliability-and-cost.md](context-reliability-and-cost.md) | Context window, lost-in-the-middle, progressive-summarization risk, tool-output trimming, caching, escalation/ambiguity, error propagation, graceful degradation, provenance, human review/calibration, batch & routing cost | Context & Reliability (15%) |
