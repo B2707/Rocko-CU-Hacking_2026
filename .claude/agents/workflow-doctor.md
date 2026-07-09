@@ -114,9 +114,13 @@ frontmatter, and each workflow YAML you find.
    (canon: claude-code-config.md — https://www.anthropiccertifications.com/learn/claude-code-workflows/claude-md-hierarchy)
 2. **Config-surface correctness** — Is anything that must run deterministically
    on every tool use implemented as a hook (not a prose rule)? Do verbose/
-   exploratory skills set `context: fork`? Do skills/agents set `allowed-tools`
-   / `tools` for least privilege?
-   (canon: claude-code-config.md — https://www.anthropiccertifications.com/learn/claude-code-workflows/custom-skills-commands;
+   exploratory skills set `context: fork`? For least privilege, note the
+   distinction: an agent/subagent's `tools` IS an allowlist, but a skill's
+   `allowed-tools` only GRANTS/pre-approves (it does NOT restrict) — a skill is
+   restricted via `disallowed-tools` or permission rules, so "skill missing
+   `allowed-tools`" is not itself an over-privilege finding.
+   (canon: claude-code-config.md — https://www.anthropiccertifications.com/learn/claude-code-workflows/custom-skills-commands
+   and https://www.anthropiccertifications.com/courses/introduction-to-agent-skills/allowed-tools-and-invocation-control;
    workflow-enforcement-and-hooks.md — https://www.anthropiccertifications.com/learn/agentic-architecture/agent-sdk-hooks)
 3. **Deterministic enforcement** — Are critical ordering rules and business/
    safety gates enforced by hooks or CI, not by "NEVER do X" prose alone
@@ -135,11 +139,19 @@ frontmatter, and each workflow YAML you find.
    points, an explicit final status, an obstacles-encountered section)? Flag
    anti-pattern agents: bare expert personas (no capability the main thread
    lacks), sequential dependent pipelines, and test-runner agents that hide
-   failing output.
-   (canon: tools-and-mcp.md — https://www.anthropiccertifications.com/learn/tool-design-mcp/tool-distribution;
+   failing output. Also check tool reachability: a subagent tool list should not
+   include UI/session-only tools that never reach a subagent (Agent/Task,
+   AskUserQuestion, EnterPlanMode/ExitPlanMode, ScheduleWakeup,
+   WaitForMcpServers), and a subagent needing a project rule or a skill must not
+   rely on built-in Explore/Plan (they skip CLAUDE.md and cannot load skills) —
+   restate the rule in the delegation prompt or wire skills via `skills:`.
+   (canon: tools-and-mcp.md — https://www.anthropiccertifications.com/learn/tool-design-mcp/tool-distribution
+   and https://www.anthropiccertifications.com/courses/introduction-to-subagents/limiting-tool-access;
    agent-architecture.md — https://www.anthropiccertifications.com/learn/agentic-architecture/agent-definition-config,
    https://www.anthropiccertifications.com/courses/introduction-to-subagents/output-formats-and-obstacle-reporting,
-   and https://www.anthropiccertifications.com/courses/introduction-to-subagents/subagent-anti-patterns)
+   https://www.anthropiccertifications.com/courses/introduction-to-subagents/subagent-anti-patterns,
+   https://www.anthropiccertifications.com/courses/introduction-to-subagents/choosing-model-tools-and-color,
+   and https://www.anthropiccertifications.com/courses/introduction-to-subagents/built-in-subagents)
 5. **Command / tool description clarity** — Are command and skill descriptions
    distinct and trigger-clear? Two near-identical descriptions cause
    misrouting.
@@ -263,6 +275,12 @@ harness; fix the specific failure and cite the principle.
   degradation. Fix: externalize findings to scratchpad, delegate verbose
   discovery to a subagent, re-inject a structured summary, `/compact`.
   (canon: context-reliability-and-cost.md — https://www.anthropiccertifications.com/learn/context-management)
+- **"Resuming (or forking) a session reasons from old file contents after
+  files changed."** Cross-session stale-context trap. Fix: forking does NOT
+  cure it (a fork inherits the same stale reads), and resume + re-read leaves
+  two contradictory versions in context — start a FRESH session with a
+  structured summary that explicitly NAMES the changed files.
+  (canon: agent-architecture.md — https://www.anthropiccertifications.com/courses/claude-certified-architect-foundations/session-state-resumption-forking)
 - **"Facts drift after summarization."** Progressive-summarization loss. Fix:
   keep a persistent structured case-facts block, re-injected every prompt,
   separate from summarized history.
