@@ -11,7 +11,7 @@ Claude-heavy days land Wed–Fri (manager's weekly window resets Saturday).
 | D1 | Wed–Thu | Kernel, task script, 5 commands, memory bank, docs, hooks, judge-sim + submission-prep skills | 8 | MUST |
 | D2 | Fri Jul 10 | Review bot (OAuth, hello-world verify), CI tests-touched, ruleset status check; gotcha-bot promote flow (timebox 2h), auto-unblock Action | 7 | MUST (bot+CI) / SHOULD (rest) |
 | D3 | Sat Jul 11 | Console core: health strip + kanban + ticker, authed GET, lazy reconcile; Upstash provisioning | 6 | MUST (core) / COULD (burn+demo tiles) |
-| D4 | Sun Jul 12 | Tripwires P0 wires + Discord + drill.sh (8/8 fires), stack-stamp dry-run vs dummy repo, /pitch wrapper + knowledge distill | 6 | SHOULD (P0 wires ≈ must) |
+| D4 | Sun Jul 12 | Tripwires P0 wires + Discord + drill.sh (all 8 in 1 run), stack-stamp dry-run vs dummy repo, /pitch wrapper + knowledge distill | 6 | SHOULD (P0 wires ≈ must) |
 | D5 | Mon Jul 13 | 90-min team drill (any-seat break-glass, Bader-gone P0, instantiation rehearsal, DAY0 dry-run) + fallout fixes + freeze | 4 | MUST |
 
 **Cut order when hours vanish** (rightmost dies first):
@@ -102,7 +102,7 @@ re-nag every pass while the condition persists — silence means fixed.
   `gh variable set DEMO_FREEZE_AT --body "2026-07-14T20:00:00Z" --repo <repo>`
   (UTC ISO timestamp; unset variable = tripwire dormant).
 - **Drill** (deterministic, audit C2): `scripts/drill.sh <owner/repo>` fires
-  all 8 wires through the REAL webhook path with a `[DRILL]` prefix and
-  verifies 8/8 runs green. Binary checkpoint: #ops shows exactly 3
-  `[DRILL][P0]` lines, #feed exactly 5 `[DRILL][P1]` lines. Anything else =
-  wiring broken; fix before the D5 team drill.
+  all 8 wires through the REAL webhook path in a single run (`simulate=all`,
+  `[DRILL]` prefix) and verifies that run is green. Binary checkpoint: #ops
+  shows exactly 3 `[DRILL][P0]` lines, #feed exactly 5 `[DRILL][P1]` lines.
+  Anything else = wiring broken; fix before the D5 team drill.

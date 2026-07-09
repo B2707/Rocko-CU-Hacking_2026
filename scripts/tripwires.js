@@ -308,14 +308,22 @@ module.exports = async function run({ github, context, core }) {
   const repo = { owner: context.repo.owner, repo: context.repo.repo };
   const alert = makeAlerter(core);
 
-  // Drill path: fire the named wire through the REAL alert route, prefixed.
+  // Drill path: fire the named wire(s) through the REAL alert route, prefixed.
+  // `simulate=all` fires every wire in ONE run — same real webhook path, same
+  // [DRILL] prefix, same 3 P0 (#ops) / 5 P1 (#feed) checkpoint — but one runner
+  // cold-start and one status poll instead of eight (faster + far less exposed
+  // to a transient GitHub API blip killing the drill). A single wire name still
+  // works for targeted re-tests.
   const simulate = (process.env.SIMULATE || '').trim();
   if (simulate) {
-    if (!WIRE_SEVERITY[simulate]) {
-      core.setFailed(`unknown tripwire: ${simulate} (valid: ${Object.keys(WIRE_SEVERITY).join(', ')})`);
-      return;
+    const wires = simulate === 'all' ? Object.keys(WIRE_SEVERITY) : [simulate];
+    for (const wire of wires) {
+      if (!WIRE_SEVERITY[wire]) {
+        core.setFailed(`unknown tripwire: ${wire} (valid: all, ${Object.keys(WIRE_SEVERITY).join(', ')})`);
+        return;
+      }
+      await alert(wire, DRILL_SAMPLES[wire], true);
     }
-    await alert(simulate, DRILL_SAMPLES[simulate], true);
     return;
   }
 

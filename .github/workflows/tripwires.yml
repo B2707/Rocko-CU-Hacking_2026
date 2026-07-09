@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       simulate:
-        description: 'Tripwire to fire through the real alert path ([DRILL] prefix) — used by scripts/drill.sh'
+        description: 'Tripwire(s) to fire through the real alert path ([DRILL] prefix); "all" fires every wire in one run — used by scripts/drill.sh'
         required: false
         default: ''
   issues:
