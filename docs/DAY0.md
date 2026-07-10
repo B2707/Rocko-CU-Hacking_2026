@@ -29,9 +29,11 @@ gh repo create <owner>/<event-repo> --public   # PUBLIC is load-bearing: ruleset
 git fetch origin
 git remote add event git@github.com:<owner>/<event-repo>.git
 git push event origin/main:refs/heads/main
-# teammates get write access NOW (they accept the email invite during Stage 1–2):
-for u in <sjp-gh> <amr-gh> <adham-gh>; do gh api -X PUT "repos/<owner>/<event-repo>/collaborators/$u" -f permission=push; done
-# re-stamp settings (labels, ruleset, secrets, claude-bot env, webhook):
+# re-stamp settings AND invite teammates (labels, ruleset, secrets, claude-bot
+# env, webhook, collaborators). GitHub usernames are setup input, never
+# hardcoded: put TEAM_GH_USERS="<user1> <user2> <user3>" in
+# ~/.hackathon-provision.env (sourced above) — else repo-init falls back to the
+# template repo's collaborators. Teammates accept the email invite in Stage 1–2.
 scripts/repo-init.sh <owner>/<event-repo> --webhook-url <console-url>/api/webhook
 # verify: a direct push to main must be REJECTED — never skip this
 ```

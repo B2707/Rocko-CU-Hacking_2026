@@ -11,6 +11,9 @@
 #   TEAM_HEARTBEAT_SECRET     console heartbeat auth (required at D3+)
 #   DISCORD_WEBHOOK_OPS       P0 alert channel (required at D4+)
 #   DISCORD_WEBHOOK_FEED      P1 ticker channel (required at D4+)
+#   TEAM_GH_USERS             teammate GitHub usernames, space-separated
+#                             (optional — falls back to the source template's
+#                             direct collaborators; never hardcoded in the repo)
 # Unset vars are skipped with a warning — rerun any time; every step is
 # idempotent.
 set -euo pipefail
@@ -146,6 +149,39 @@ if [ -n "$WEBHOOK_URL" ]; then
   fi
 else
   echo "==> webhook: skipped (no --webhook-url; add at D3 when the console deploys)"
+fi
+
+# --- 5. Team collaborators (usernames are setup input — never hardcoded) ------
+# Priority: $TEAM_GH_USERS (space-separated, e.g. from ~/.hackathon-provision.env)
+# → direct collaborators of the template this repo was generated from. The
+# manager is whoever runs this script (the authenticated gh account) and is
+# always excluded from invites.
+echo "==> collaborators"
+MANAGER_LOGIN=$(gh api user --jq .login)
+echo "    manager: $MANAGER_LOGIN (authenticated gh account — not invited)"
+TEAM_USERS="${TEAM_GH_USERS:-}"
+if [ -n "$TEAM_USERS" ]; then
+  echo "    source: \$TEAM_GH_USERS"
+else
+  TEMPLATE=$(gh api "repos/$REPO" --jq '.template_repository.full_name // empty' 2>/dev/null || true)
+  if [ -n "$TEMPLATE" ]; then
+    TEAM_USERS=$(gh api "repos/$TEMPLATE/collaborators?affiliation=direct" \
+      --jq '.[].login' 2>/dev/null | grep -vx "$MANAGER_LOGIN" | tr '\n' ' ' || true)
+    [ -n "${TEAM_USERS// /}" ] && echo "    source: template $TEMPLATE collaborators"
+  fi
+fi
+if [ -z "${TEAM_USERS// /}" ]; then
+  echo "    WARN: no teammates found — export TEAM_GH_USERS=\"<user1> <user2> <user3>\""
+  echo "          (space-separated GitHub usernames) and rerun; invites are idempotent"
+else
+  for u in $TEAM_USERS; do
+    [ "$u" = "$MANAGER_LOGIN" ] && continue
+    if gh api -X PUT "repos/$REPO/collaborators/$u" -f permission=push >/dev/null 2>&1; then
+      echo "    invited: $u (push) — they accept the email invite"
+    else
+      echo "    WARN: could not invite $u — check the username, then rerun"
+    fi
+  done
 fi
 
 echo "==> done: $REPO stamped"
