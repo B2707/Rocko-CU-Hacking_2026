@@ -35,6 +35,11 @@ cmd_doctor() {
     warn "codex CLI missing (needed for /consensus; see docs/SETUP.md)"
   fi
   [ -f "$REPO_ROOT/.claude/settings.json" ] && pass "hooks config present" || fail "hooks config missing (.claude/settings.json)"
+  if [ -f "$REPO_ROOT/scripts/test-hooks.sh" ]; then
+    bash "$REPO_ROOT/scripts/test-hooks.sh" >/dev/null 2>&1 && pass "hooks actually DENY (test-hooks.sh)" || fail "hooks did NOT deny — fail-open risk (run: bash scripts/test-hooks.sh)"
+  else
+    warn "test-hooks.sh missing — cannot prove hooks fire"
+  fi
   # Parity: committed config must match origin/main (stamp-once-commit-everywhere)
   git fetch -q origin main
   if git diff --quiet origin/main -- "$REPO_ROOT/.claude" "$REPO_ROOT/scripts" 2>/dev/null; then
@@ -52,6 +57,16 @@ cmd_doctor() {
 
 cmd_start() {
   local n="${1:?usage: task start <issue#>}"
+  # Board semantics: block clear violations, nudge on the rest (was: start ANY issue).
+  local meta; meta=$(gh issue view "$n" --json state,labels,assignees 2>/dev/null) || { say "issue #$n not found"; exit 1; }
+  [ "$(echo "$meta" | jq -r '.state')" = "OPEN" ] || { say "issue #$n is not OPEN — nothing to start"; exit 1; }
+  local labels; labels=$(echo "$meta" | jq -r '.labels[].name')
+  echo "$labels" | grep -qx 'blocked' && { say "issue #$n is blocked — clear the blocker first (or ask the FM)"; exit 1; }
+  local me; me=$(gh api user -q .login 2>/dev/null || echo "")
+  [ -n "$me" ] && [ "$(echo "$meta" | jq -r --arg me "$me" '[.assignees[].login | select(.!=$me)] | length')" -gt 0 ] \
+    && { say "issue #$n is already claimed by a teammate — take an unclaimed Ready issue"; exit 1; }
+  echo "$labels" | grep -qE '^(ready|demo-path|filler)$' \
+    || warn "issue #$n has no ready/demo-path/filler label — starting anyway, but confirm it's dispatchable (new work → /propose)"
   git fetch -q origin main
   # Clean up worktrees whose branches already merged (absorbs old `done`)
   if [ -d "$WT_DIR" ]; then

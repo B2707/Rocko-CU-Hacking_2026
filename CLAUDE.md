@@ -6,8 +6,9 @@ then escalate through the channels below.
 
 ## The team
 
-- **Bader** — manager: First Mate dispatcher (T1), orchestrator (T2), triage
-  (T3), night batch (T4), ops shell (T5). Escalations end at Bader.
+- **Bader** — manager, 3 seats: **First Mate / River** (autonomous triage,
+  dispatch + overnight build-to-queue — see "First Mate (River)" below),
+  **orchestrator** (planning + `/consensus`), **ops shell**. Escalations end at Bader.
 - **sjp** — teammate lane; currently holds the **demo owner** role
   (final call on demo freeze + submission). The role is reassignable — the
   role matters, not the name.
@@ -63,6 +64,25 @@ rubric and is required before submission.
   paste whole memory files into context.
 - Long session? Externalize findings to files and `/compact` at phase
   boundaries — stale context lies.
+
+## First Mate (River) — the manager's autonomous seat
+
+Bader's First Mate pane runs an autonomous loop (`/fm`, or `/loop 10m /fm`): it senses
+the board, triages, and — overnight — builds ready, in-scope, fully-specified issues to
+**non-draft** PRs (headless codex via `scripts/fm-build.sh`), then **auto-merges the
+policy-eligible green ones** via `scripts/fm-merge.sh` in dependency-priority order.
+Fuzzy work becomes a scout report, not a build. It writes a morning digest to
+`data/context/handoffs/DIGEST.md`.
+
+River's autonomy is **merge-with-rules**, bounded structurally: merges happen ONLY
+through the `fm-merge.sh` engine (serial train; only `CLEAN` PRs — a green-but-behind
+PR is updated from main and re-validated first; merges SHA-pinned to the assessed head;
+caps per tick/window; nothing during demo freeze).
+**Machinery is human-only:** PRs touching `.github/`, `.claude/`, `scripts/`, or `.env*`
+— the gate, the hooks, River itself — are never auto-merged, so River cannot expand its
+own permissions. It NEVER pushes main, NEVER applies `break-glass`, and NEVER decides a
+plan change or dispute (those get `needs-human`). Every merge still passes the
+server-side ruleset. Design adopted from `kunchenguid/firstmate`.
 
 ## Escalation ends at humans
 

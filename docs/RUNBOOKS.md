@@ -16,8 +16,8 @@ Claude-heavy days land Wed–Fri (manager's weekly window resets Saturday).
 
 **Cut order when hours vanish** (rightmost dies first):
 review-bot → gotcha-bot promote flow → health strip → P0 tripwires ▮ CUT LINE ▮
-kanban/ticker → auto-unblock → /pitch wrapper → burn/demo tiles → night-batch
-launcher → scripted P1 fires → full instinct plumbing.
+kanban/ticker → auto-unblock → /pitch wrapper → burn/demo tiles → scripted P1
+fires → full instinct plumbing.
 
 ## Red main (rollback — rehearsed at D5)
 1. Announce in team channel: "main is red, reverting."
@@ -106,3 +106,49 @@ re-nag every pass while the condition persists — silence means fixed.
   `[DRILL]` prefix) and verifies that run is green. Binary checkpoint: #ops
   shows exactly 3 `[DRILL][P0]` lines, #feed exactly 5 `[DRILL][P1]` lines.
   Anything else = wiring broken; fix before the D5 team drill.
+
+## First Mate / River loop (the manager's autonomous seat)
+
+`/fm` on the First Mate pane is the standing loop (run it continuously with
+`/loop 10m /fm`). Each tick: senses the board → triages candidates/proposals →
+ships ready, fully-specified issues to **non-draft** PRs (`scripts/fm-build.sh`,
+headless codex, isolated worktrees) → labels green + bot-passed ones `queued-merge`
+→ **auto-merges the policy-eligible ones** (`scripts/fm-merge.sh`, rules below) →
+overwrites `data/context/handoffs/DIGEST.md`. Code changes happen only in crewmate
+worktrees; machinery merges stay human-only.
+
+- **Rule-gated auto-merge (`scripts/fm-merge.sh`):** River merges `queued-merge` PRs
+  itself — in dependency-priority order (Depends-on edges → demo-path > fix > feat >
+  docs → oldest first), serially, only `mergeStateStatus=CLEAN` (a green-but-BEHIND PR
+  is updated from main and re-validated next tick — the ruleset's strict mode is off, so
+  this is what prevents two green PRs from breaking each other). Merges are SHA-pinned
+  to the assessed head and labels re-verified at merge time (the panic button always
+  wins); ≤3 update-branch attempts per PR per window, then `needs-human`. **Machinery PRs never
+  auto-merge:** anything touching `.github/`, `.claude/`, `scripts/`, `.env*` waits for
+  you, as do `needs-human` / `break-glass` / `PLAN:` items and everything during demo
+  freeze. Caps: `FM_MERGE_TICK_CAP` (2/tick), `FM_MERGE_CAP` (8/UTC-day).
+- **Morning ack (audit + human tier):** `/fm ack` shows what River merged
+  (`fm-state get '.mergedPRs'`), the current merge plan (`fm-merge assess`), and the
+  HUMAN-tier queue — those you merge yourself (`gh pr merge <n> --squash`).
+- **Merge kill-switch:** `FM_AUTOMERGE=off` (queue-only, no merges) or
+  `touch data/context/fm/PAUSE` (halts builds AND merges).
+- **Snapshot any time:** `/fm bearings` (read-only "where are we").
+- **Build budget:** `FM_BUILD_BUDGET` (default 2/tick); River builds 0 while the
+  `budget` tripwire is hot. Manager seat only (guarded by `TEAM_SEAT` / `FM_MANAGER`).
+- **If River misbehaves:** it cannot merge or push main by construction. To pause it,
+  `touch data/context/fm/PAUSE` (halts builds; triage continues), stop the loop (Ctrl-C
+  the `/loop`), or clear `queued-merge` labels. PRs it left are harmless — review or close.
+
+### Unattended-River hardening (P2 — bonus, never a dependency)
+
+River is safe to leave running overnight; if codex or the loop is flaky it just stops
+building and keeps triaging — the manager can always dispatch by hand instead.
+
+- **Per-tick gate** (`scripts/fm-precheck.sh`): builds only when codex is authed, the night
+  cap isn't hit, the `budget` wire is cool, and no PAUSE file — else the tick is triage-only.
+- **Headless builds** (`scripts/fm-build.sh <n>`): deterministic issue→non-draft-PR via
+  `codex exec` in an isolated worktree; the loop uses this instead of interactive `/consensus`.
+- **Night cap:** `FM_NIGHT_BUILD_CAP` (default 8) builds per UTC-day window (auto-resets daily).
+- **Kill-switch:** `touch data/context/fm/PAUSE` pauses all builds; `rm` it to resume.
+- **Restart-proof:** state lives in `data/context/fm/state.json` (a cache — the live repo is the
+  source of truth) so a `/loop` context reset never double-builds an issue.
