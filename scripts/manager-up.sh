@@ -28,7 +28,12 @@ command -v tmux >/dev/null 2>&1 || { echo "tmux not installed — run: brew inst
 REPO="$(cd "$REPO" && pwd)"
 [ -x "$REPO/scripts/task" ] || { echo "not the team repo (no scripts/task): $REPO — pass the repo path"; exit 1; }
 SESSION="${2:-hq-$(basename "$REPO")}"
-SEAT="export TEAM_SEAT=B2707"   # /fm's manager-seat guard needs this in EVERY pane
+# TEAM_SEAT: /fm's manager-seat guard needs it in EVERY pane.
+# ECC_SKIP_PREPUSH: the ECC global pre-push hook (installed by the Codex/ECC
+# integration on this machine) runs lint+typecheck+test+build on every push —
+# pure duplication of the server-side CI gate, and it would throttle every
+# River push. Skip it in cockpit panes; the pre-commit secret scan still runs.
+SEAT="export TEAM_SEAT=B2707 ECC_SKIP_PREPUSH=1"
 
 attach() { if [ -n "${TMUX:-}" ]; then tmux switch-client -t "$SESSION"; else exec tmux attach -t "$SESSION"; fi; }
 
