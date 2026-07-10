@@ -33,6 +33,16 @@ Fix anything it flags (it tells you how). When it says READY:
 That's the whole job. `/gotcha` when something burns you, `/propose` when
 you spot work outside your brief.
 
+## First Mate (River)
+- `/fm` is the manager's autonomous loop (`/loop 10m /fm`); `/fm bearings` is
+  the read-only status snapshot.
+- River builds ready, fully-specified issues to **non-draft** PRs, then
+  auto-merges the policy-eligible green ones in dependency-priority order.
+- PRs touching `.github/`, `.claude/`, `scripts/`, or `.env*` NEVER
+  auto-merge — humans only.
+- Kill switches: `touch data/context/fm/PAUSE` halts builds + merges;
+  `FM_AUTOMERGE=off` keeps builds on and turns merges off.
+
 ## Pro-seat rules (you're on Claude Pro)
 - ONE hot agent terminal; your second terminal is a plain shell (dev server,
   logs) — never a second agent.
