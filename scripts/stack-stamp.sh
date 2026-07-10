@@ -84,6 +84,49 @@ mv CLAUDE.md.new CLAUDE.md
 echo "    stamped into CLAUDE.md (between stack-rules markers)"
 echo
 
+# --- ECC agents + skills import (vendor into the repo; teammates never install ECC) ---
+# Runs on the manager's machine: copies stack-matched reviewer/build-resolver
+# AGENTS from the deployed ECC install and pattern/testing SKILLS from the fork
+# library into this repo's .claude/, so every seat inherits them on next pull.
+# Copy-only + idempotent: never overwrites anything already in the template.
+ECC_AGENTS_DIR="${ECC_AGENTS_DIR:-$HOME/.claude/agents}"
+ECC_SKILLS_DIR="${ECC_SKILLS_DIR:-$HOME/hackathon-workflow/workflow-Hackathon/skills}"
+
+import_agent() {
+  local n="$1" src="$ECC_AGENTS_DIR/$1.md" dst=".claude/agents/$1.md"
+  [[ -f "$dst" ]] && { echo "    = agent $n (already in template)"; return 0; }
+  [[ -f "$src" ]] && { mkdir -p .claude/agents; cp "$src" "$dst"; echo "    + agent $n"; } \
+    || echo "    WARN: agent $n not found in $ECC_AGENTS_DIR — skipped"
+}
+import_skill() {
+  local n="$1" src="$ECC_SKILLS_DIR/$1" dst=".claude/skills/$1"
+  [[ -d "$dst" ]] && { echo "    = skill $n (already in template)"; return 0; }
+  [[ -d "$src" ]] || src="$HOME/.claude/skills/$1"          # fallback: deployed install
+  [[ -d "$src" ]] && { mkdir -p .claude/skills; cp -R "$src" "$dst"; echo "    + skill $n"; } \
+    || echo "    WARN: skill $n not found — skipped"
+}
+
+echo "==> importing stack-matched ECC agents + skills (curated — context weight is real on Pro seats):"
+import_agent security-reviewer          # every stack: pre-commit security pass
+import_agent tdd-guide                  # every stack: write-tests-first discipline
+for pack in "${PACKS[@]}"; do
+  case "$pack" in
+    typescript) import_agent typescript-reviewer; import_agent build-error-resolver ;;
+    react)      import_agent react-reviewer; import_agent react-build-resolver
+                import_skill react-patterns; import_skill react-testing ;;
+    python)     import_agent python-reviewer
+                import_skill python-patterns; import_skill python-testing ;;
+    golang)     import_agent go-reviewer; import_agent go-build-resolver
+                import_skill golang-patterns; import_skill golang-testing ;;
+  esac
+done
+# framework refinements beyond the pack keywords
+grep -qi "django"  stack.md && import_agent django-reviewer  && import_agent django-build-resolver
+grep -qi "fastapi" stack.md && import_agent fastapi-reviewer
+grep -qiE "next(\.js)?" stack.md && import_skill nextjs-turbopack
+echo "    (imports land in .claude/ — machinery: commit via PR, human merges)"
+echo
+
 # --- hook auto-activation reminder ---------------------------------------------
 echo "==> auto-activates on its own (scripts/hooks/post-write-check.js):"
 echo "    - eslint on every JS/TS edit once an eslint config exists"
