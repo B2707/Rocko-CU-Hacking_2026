@@ -26,10 +26,10 @@ jobs:
           fi
           title="Distill: $count candidate(s) awaiting FM promotion"
           body=$(printf 'Nightly distill queue — FM promotes the keepers into data/context/gotchas.md or instincts.md via PR, then deletes the candidate files in the same PR.\n\n%s\n' "$(printf '%s\n' "$files" | sed 's/^/- /')")
-          existing=$(gh issue list --label needs-human --search '"Distill:" in:title' --state open --json number --jq '.[0].number' || true)
+          existing=$(gh issue list --label team:triage --search '"Distill:" in:title' --state open --json number --jq '.[0].number' || true)
           if [ -n "$existing" ]; then
             gh issue edit "$existing" --title "$title" --body "$body"
             echo "updated distill issue #$existing"
           else
-            gh issue create --title "$title" --body "$body" --label needs-human
+            gh issue create --title "$title" --body "$body" --label team:triage
           fi

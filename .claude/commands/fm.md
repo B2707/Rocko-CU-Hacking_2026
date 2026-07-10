@@ -34,8 +34,10 @@ reusing this repo's `/consensus`, `scripts/task`, tripwires, and review bot.
 - **ship** — issue is unclaimed, `ready`, in-scope, fully specified (brief has file scope +
   acceptance criteria) → build to an open PR.
 - **scout** — issue is fuzzy, a question, or out-of-scope → DON'T build. Write a short
-  investigation report to `data/context/handoffs/<n>.md` + a digest line. River never
-  builds underspecified work.
+  investigation report to `data/context/handoffs/<n>.md` + a digest line, AND mirror it
+  to the issue (`gh issue comment <n> --body-file ...`) so every seat sees it at `/start`
+  — handoffs on the manager's disk never reach teammates otherwise. River never builds
+  underspecified work.
 
 ## Phase 0 — Guard  [Preflight]
 ```bash
@@ -82,7 +84,8 @@ direct main fix. Clean up: `git worktree remove "$TMP/diag"`.
 gh issue list --state open -L 100 --json number,title,labels,assignees,updatedAt > "$TMP/issues.json"
 gh pr list   --state open -L 100 --json number,title,headRefName,isDraft,mergeable,statusCheckRollup,labels > "$TMP/prs.json"
 gh issue list --label proposed -L 50 --json number,title > "$TMP/proposed.json"
-ls "$(git rev-parse --show-toplevel)/data/context/gotcha-candidates" 2>/dev/null
+# sense candidates from ORIGIN (the manager's local checkout is often stale — River never pulls it)
+git fetch -q origin main && git ls-tree -r --name-only origin/main -- data/context/gotcha-candidates/ | grep -v '.gitkeep' || true
 ```
 Summarize the board in ≤5 lines.
 

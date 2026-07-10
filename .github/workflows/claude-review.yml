@@ -2,7 +2,9 @@ name: claude-review
 
 on:
   pull_request:
-    types: [opened, ready_for_review, synchronize, labeled]
+    # `unlabeled` matters: removing break-glass must trigger a FRESH review so
+    # the gate re-arms (otherwise the last skipped-green run stands forever).
+    types: [opened, ready_for_review, synchronize, labeled, unlabeled]
 
 concurrency:
   group: claude-review-${{ github.event.pull_request.number }}
@@ -86,8 +88,13 @@ jobs:
       - name: Enforce verdict
         run: |
           if [ ! -f claude-verdict.txt ]; then
-            echo "::warning::no verdict file produced — treating as PASS (bot must not brick merges)"
-            exit 0
+            # FAIL CLOSED (audit CRITICAL): the model skips the file-write step
+            # ~10-15% of the time — a missing verdict must never read as PASS,
+            # or a posted BLOCK silently greens the gate and fm-merge auto-merges
+            # it overnight. Escape hatches if this bites: re-run this job, or
+            # apply the break-glass label (skipped = green).
+            echo "::error::no verdict file produced — failing closed (re-run the job, or break-glass to bypass)"
+            exit 1
           fi
           verdict="$(tr -d '[:space:]' < claude-verdict.txt)"
           echo "verdict: $verdict"

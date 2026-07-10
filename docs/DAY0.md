@@ -16,15 +16,40 @@ as humans through Stage 3. Rehearsed once in the D5 drill.
 ## Event-repo instantiation (parallel with Stage 4–5)
 
 GitHub carries FILES ONLY between repos — labels, protection, secrets, and
-webhooks must be re-stamped:
+webhooks must be re-stamped.
+
+**Pre-staged the night before (NOT at the venue):** `claude setup-token` →
+`export CLAUDE_CODE_OAUTH_TOKEN=...` appended to `~/.hackathon-provision.env`
+(chmod 600); local template clone synced (`git switch main && git pull`).
 
 ```bash
-gh repo create <owner>/<event-repo> --public
-# push template contents:
-git remote add event git@github.com:<owner>/<event-repo>.git && git push event main
-# re-stamp settings (secrets read from Bader's terminal env):
+source ~/.hackathon-provision.env
+gh repo create <owner>/<event-repo> --public   # PUBLIC is load-bearing: rulesets don't ENFORCE on private free-plan repos
+# push CANONICAL main — branch-proof, never trusts the local checkout:
+git fetch origin
+git remote add event git@github.com:<owner>/<event-repo>.git
+git push event origin/main:refs/heads/main
+# teammates get write access NOW (they accept the email invite during Stage 1–2):
+for u in <sjp-gh> <amr-gh> <adham-gh>; do gh api -X PUT "repos/<owner>/<event-repo>/collaborators/$u" -f permission=push; done
+# re-stamp settings (labels, ruleset, secrets, claude-bot env, webhook):
 scripts/repo-init.sh <owner>/<event-repo> --webhook-url <console-url>/api/webhook
-# verify: a direct push to main must be REJECTED
+# verify: a direct push to main must be REJECTED — never skip this
+```
+
+**Bot gate, IN ORDER (~8 min — a required check that never reports blocks EVERY merge):**
+1. Hello-world PR (touch `docs/BOT-VERIFY.md`) → expect a bot comment + green
+   `review` / `tests-touched` / `build-test` / `hooks-test`.
+2. `scripts/enable-bot-gate.sh <owner>/<event-repo>` — flips all four to REQUIRED.
+3. `break-glass` label on the verify PR → checks re-run skipped (= green). Escape hatch proven.
+4. Close the verify PR.
+
+**Console retarget (~4 min):** `cd ~/hackathon-console && vercel env rm GITHUB_REPO production -y && printf '<owner>/<event-repo>' | vercel env add GITHUB_REPO production && vercel --prod`
+
+**Cockpit + monitoring (manager):**
+```bash
+scripts/manager-up.sh ~/<event-repo-clone>     # 3-pane cockpit; River auto-runs /loop 10m /fm
+# OPS pane:  bash scripts/tripwire-kicker.sh   # real 10-min sweeps (GitHub cron ≈2–3h on free repos)
+# overnight: keep the Mac ON POWER + caffeinate -s — sleep kills every loop, tmux or not
 ```
 
 ## Standing rules born here

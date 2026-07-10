@@ -14,6 +14,11 @@ set -euo pipefail
 REPO_ROOT="$(git rev-parse --path-format=absolute --git-common-dir | xargs dirname)"
 WT_DIR="$REPO_ROOT/.task/worktrees"
 CTX="$REPO_ROOT/data/context"
+# .env is the documented home for TEAM_SEAT — source it so filling the file is
+# enough (an already-exported TEAM_SEAT wins over the file).
+_seat_env="${TEAM_SEAT:-}"
+[ -f "$REPO_ROOT/.env" ] && { set -a; . "$REPO_ROOT/.env" 2>/dev/null || true; set +a; }
+[ -n "$_seat_env" ] && TEAM_SEAT="$_seat_env"
 SEAT="${TEAM_SEAT:-$(git config user.name 2>/dev/null | tr ' [:upper:]' '-[:lower:]' || echo seat)}"
 
 say()  { printf '%s\n' "$*"; }
@@ -79,13 +84,21 @@ cmd_start() {
       fi
     done
   fi
+  # Takeover check BEFORE creating anything (bot WARN: warning after
+  # `git worktree add` fires post-collision — the duplicate already exists)
+  if git ls-remote --heads origin "task/$n-*" 2>/dev/null | grep -q .; then
+    warn "existing task/$n-* branch on origin — takeover instead of restart: git fetch origin && git worktree add $WT_DIR/issue-$n <that-branch> (Ctrl-C now to do that; continuing creates a parallel branch)"
+  fi
   local br="task/$n-$SEAT" wt="$WT_DIR/issue-$n"
   [ -d "$wt" ] && { say "worktree already exists: $wt"; exit 1; }
   git worktree add -q "$wt" -b "$br" origin/main
   gh issue edit "$n" --add-assignee "@me" >/dev/null 2>&1 || warn "could not self-assign issue #$n"
   say ""
-  say "== TASK BRIEF (issue #$n) =="
-  gh issue view "$n" || true
+  say "== TASK BRIEF (issue #$n — with comments: dead ends + takeover notes live here) =="
+  gh issue view "$n" --comments || true
+  say ""
+  say "== SCOUT REPORTS / HANDOFFS (issue #$n) =="
+  if ls "$CTX"/handoffs/"$n"*.md >/dev/null 2>&1; then cat "$CTX"/handoffs/"$n"*.md; else say "(none)"; fi
   say ""
   say "== TEAM GOTCHAS (acked) =="
   cat "$CTX/gotchas.md" 2>/dev/null || say "(none yet)"
@@ -131,8 +144,14 @@ cmd_ship() {
 
 cmd_gotcha() {
   local text="${*:?usage: task gotcha <what you learned>}"
-  mkdir -p "$CTX/gotcha-candidates"
-  local f="$CTX/gotcha-candidates/$SEAT-$(date +%s).md"
+  # Write into THIS tree: git-common-dir points at the MAIN checkout, whose
+  # paths `git add` rejects from inside a linked worktree (fatal, rc=128).
+  local top; top="$(git rev-parse --show-toplevel)"
+  if [ "$(git branch --show-current)" = "main" ]; then
+    say "run /gotcha from your task worktree — candidates ride your task PR, never main"; exit 1
+  fi
+  mkdir -p "$top/data/context/gotcha-candidates"
+  local f="$top/data/context/gotcha-candidates/$SEAT-$(date +%s).md"
   printf -- '- %s  _(seat: %s, %s)_\n' "$text" "$SEAT" "$(date '+%m-%d %H:%M')" > "$f"
   git add "$f"
   git commit -q -m "gotcha: candidate from $SEAT" -- "$f" 2>/dev/null || true

@@ -245,8 +245,10 @@ async function checkIssues(github, repo, openPrCount) {
   const issues = raw.filter((i) => !i.pull_request);
   const labelsOf = (i) => i.labels.map((l) => (typeof l === 'string' ? l : l.name));
 
-  // panic: the needs-human queue must drain fast — re-nag while non-empty
-  const panicking = issues.filter((i) => labelsOf(i).includes('needs-human'));
+  // panic: the needs-human queue must drain fast — re-nag while non-empty.
+  // Scan raw (issues + PRs): fm-merge escalates PRs with exactly this label,
+  // and an issues-only filter would never page for them (audit MEDIUM).
+  const panicking = raw.filter((i) => labelsOf(i).includes('needs-human'));
   if (panicking.length > 0) {
     found.push({
       wire: 'panic',

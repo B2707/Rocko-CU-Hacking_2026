@@ -43,6 +43,16 @@ you spot work outside your brief.
 - Kill switches: `touch data/context/fm/PAUSE` halts builds + merges;
   `FM_AUTOMERGE=off` keeps builds on and turns merges off.
 
+## Manager cockpit (Bader only — teammates never need tmux)
+
+```bash
+scripts/manager-up.sh [repo-path]   # 3 panes: Orchestrator · First Mate (auto /loop 10m /fm) · Ops
+```
+
+- Detach `Ctrl-b d` (everything keeps running) · reattach = re-run the script.
+- Each repo gets its own session (`hq-<repo>`); kill one: `tmux kill-session -t hq-<repo>`.
+- Overnight River: keep the Mac on power (`caffeinate -s`) — sleep kills every loop.
+
 ## Pro-seat rules (you're on Claude Pro)
 - ONE hot agent terminal; your second terminal is a plain shell (dev server,
   logs) — never a second agent.

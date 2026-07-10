@@ -52,8 +52,16 @@ assert_deny "fact-gate first-edit" "$HOOKS/fact-gate.js" "$FACT_PAYLOAD"
 echo "==> fact-gate: the second identical edit is allowed (deny-once)"
 assert_allow "fact-gate second-edit" "$HOOKS/fact-gate.js" "$FACT_PAYLOAD"
 
-echo "==> fact-gate: a data/context file is never gated"
+echo "==> fact-gate: a data/context file is never fact-gated"
 assert_allow "fact-gate skip-context" "$HOOKS/fact-gate.js" \
-  '{"session_id":"'"$SID"'-c","cwd":"'"$PWD"'","tool_input":{"file_path":"'"$PWD"'/data/context/gotchas.md"}}'
+  '{"session_id":"'"$SID"'-c","cwd":"'"$PWD"'","tool_input":{"file_path":"'"$PWD"'/data/context/handoffs/probe.md"}}'
+
+echo "==> fact-gate: one-writer surface (gotchas.md) denied for a non-manager seat"
+TEAM_SEAT=amr assert_deny "fact-gate one-writer seat" "$HOOKS/fact-gate.js" \
+  '{"session_id":"'"$SID"'-w1","cwd":"'"$PWD"'","tool_input":{"file_path":"'"$PWD"'/data/context/gotchas.md"}}'
+
+echo "==> fact-gate: one-writer surface allowed for the manager seat"
+TEAM_SEAT=bader assert_allow "fact-gate one-writer manager" "$HOOKS/fact-gate.js" \
+  '{"session_id":"'"$SID"'-w2","cwd":"'"$PWD"'","tool_input":{"file_path":"'"$PWD"'/data/context/gotchas.md"}}'
 
 echo "ALL HOOK GATES PROVEN"
