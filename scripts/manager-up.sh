@@ -71,6 +71,16 @@ tmux split-window -v -t "$SESSION:hq.1" -c "$REPO"
 tmux send-keys -t "$SESSION:hq.2" \
   "$SEAT; clear; printf '🛠  OPS — plain shell · during the event run: bash scripts/tripwire-kicker.sh\n\n'; (bash scripts/heartbeat.sh --loop 300 >/dev/null 2>&1 &)" C-m
 
+# Labeled pane borders: the panes MUST be tellable-apart at a glance (2026-07-11:
+# the manager mistook the panes for other sessions). Claude TUIs overwrite their
+# own pane title (e.g. "✳ orchestrator"), so pane 0's label is transient — the
+# shell panes keep theirs.
+tmux set -t "$SESSION" pane-border-status top
+tmux set -t "$SESSION" pane-border-format ' #{pane_title} '
+tmux select-pane -t "$SESSION:hq.0" -T '🧭 ORCHESTRATOR — you work here (planning · /fm ack)'
+tmux select-pane -t "$SESSION:hq.1" -T '⚓ RIVER — headless auto-loop, hands off'
+tmux select-pane -t "$SESSION:hq.2" -T '🛠 OPS — free terminal (git/gh/drills)'
+
 tmux select-layout -t "$SESSION:hq" main-vertical
 tmux select-pane -t "$SESSION:hq.0"
 trap - ERR
