@@ -8,14 +8,14 @@ allowed-tools: Bash, Read, Write
 
 You are the **captain**; `/fm` is your **first mate**. You talk to one agent; it runs the
 crew and hands you finished work. One tick = **sense** the board → **triage** → **build**
-ready work to open PRs (headless codex) → **queue** the green ones for your ack → **digest**.
+ready work to open PRs (headless claude) → **queue** the green ones for your ack → **digest**.
 Run continuously on the First Mate pane with `/loop 10m /fm`, or once with `/fm`.
 
 Autonomy: **merge-with-rules.** River prepares, queues, and **auto-merges policy-eligible
 green PRs in dependency-priority order** via `scripts/fm-merge.sh` — but **machinery changes
 (.github/ .claude/ scripts/ .env) are always human-merged**, and every merge still passes the
 server-side gate. Design adopted from `kunchenguid/firstmate` + ECC `continuous-agent-loop`,
-reusing this repo's `/consensus`, `scripts/task`, tripwires, and review bot.
+reusing this repo's `scripts/task`, tripwires, and review bot.
 
 ## Boundaries — why you can leave it running (structural, not vibes)
 1. **River is read-only over the repo.** All code changes happen in **crewmate worktrees**
@@ -50,8 +50,6 @@ esac
 gh auth status >/dev/null 2>&1 || { echo "STOP: gh not authenticated (gh auth login)"; exit 1; }
 REPO="$(gh repo view --json nameWithOwner -q .nameWithOwner)"
 HANDOFFS="$(git rev-parse --show-toplevel)/data/context/handoffs"; DIGEST="$HANDOFFS/DIGEST.md"
-CODEX_OK=0; command -v codex >/dev/null 2>&1 && codex login status >/dev/null 2>&1 && CODEX_OK=1
-[ "$CODEX_OK" = 0 ] && echo "NOTE: codex unavailable — this tick is triage + scout + digest only (no ship builds)."
 bash scripts/fm-state.sh init >/dev/null 2>&1 || true   # P2: durable loop state (resets the build window on a new day)
 bash scripts/fm-state.sh 'paused?' 2>/dev/null && echo "NOTE: PAUSE kill-switch set — builds held this tick; triage + scout + digest only."
 ```
@@ -98,8 +96,8 @@ Summarize the board in ≤5 lines.
   next-up brief into `$HANDOFFS/`, digest line. Real red-main it can't SAFELY revert →
   `needs-human` + loud line. Never auto-revert main.
 
-## Phase 3 — Ship ready work to OPEN PRs  [Execute · codex · gated]
-**Gate first (P2).** Run the per-tick precheck — it degrades to triage-only when codex is down,
+## Phase 3 — Ship ready work to OPEN PRs  [Execute · claude · gated]
+**Gate first (P2).** Run the per-tick precheck — it degrades to triage-only when the claude CLI is missing,
 the night cap is hit, the `budget` wire is hot, or the PAUSE kill-switch is set:
 ```bash
 if PC="$(bash scripts/fm-precheck.sh)"; then BUILD=1; else BUILD=0; fi; echo "$PC"
@@ -112,13 +110,11 @@ the policy-eligible green ones — machinery PRs wait for your `/fm ack`.
 - **Unattended (the loop's default)** — one deterministic headless command per issue. It builds
   in an isolated worktree, pushes, opens a **non-draft** `fm-built` PR, and records the build in
   durable state. Idempotent: a re-run for an already-built issue (or one with an open
-  `codex/<n>-*` branch) is a no-op — so a `/loop` context reset never double-builds:
+  `fm/<n>-*` branch) is a no-op — so a `/loop` context reset never double-builds:
   ```bash
   bash scripts/fm-build.sh <n>        # → final line: FM-BUILD-RESULT {"issue":n,"status":...,"pr":...}
   ```
-- **Attended (you're at the seat)** — drive the richer **/consensus** engine instead (plan →
-  codex consensus ≤5 → codex exec → cross-model review) on a `codex/<n>-slug` worktree, then push
-  + non-draft PR by hand. Higher touch, same gate holds it for ack.
+- **Attended (you're at the seat)** — codex//consensus is DISABLED (2026-07-11, plan usage). Run the same deterministic build interactively: `bash scripts/fm-build.sh <n>`, read the diff on the PR, and let the gate hold it for ack.
 
 Underspecified after a look → convert to **scout**, don't force a build.
 
@@ -152,12 +148,12 @@ gh pr list --label queued-merge --json number,title,url -q '.[] | "\(.number)  \
 ```
 
 ## Caps (hard)
-Build budget ${FM_BUILD_BUDGET:-2}/tick · night cap ${FM_NIGHT_BUILD_CAP:-8}/window · consensus ≤5
-rounds · ≤1 fix pass · merge caps ${FM_MERGE_TICK_CAP:-2}/tick + ${FM_MERGE_CAP:-8}/window. Never
+Build budget ${FM_BUILD_BUDGET:-2}/tick · night cap ${FM_NIGHT_BUILD_CAP:-8}/window · ≤1 fix pass ·
+merge caps ${FM_MERGE_TICK_CAP:-2}/tick + ${FM_MERGE_CAP:-8}/window. Never
 exceed; merge ONLY via `fm-merge.sh`; never push main; never break-glass. `rm -rf "$TMP"` at tick end.
 
 **Restart-proof (P2).** All loop state is on disk — `data/context/fm/state.json` (build window +
 built issues; the live repo is the source of truth, this is a cache) plus the DIGEST. A `/loop`
-context reset resumes cleanly: idempotent `fm-build.sh` skips any issue with an open `codex/<n>-*`
+context reset resumes cleanly: idempotent `fm-build.sh` skips any issue with an open `fm/<n>-*`
 branch or `fm-built` PR. **Kill-switch:** `touch data/context/fm/PAUSE` halts all builds (triage
 continues); delete it to resume.

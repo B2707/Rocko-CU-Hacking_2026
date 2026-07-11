@@ -2,7 +2,7 @@
 # fm-state — durable, restart-proof state for the /fm (River) loop (P2).
 #
 # The LIVE REPO is the source of truth; this file is only a cache. If it is
-# lost, River re-derives "already built" from open codex/* branches + fm-built
+# lost, River re-derives "already built" from open fm/* branches + fm-built
 # PRs, so a lost state file degrades to a re-scan — never a double-merge (branch
 # protection) and rarely a double-build (fm-build's branch-collision check).
 # If state.json is CORRUPT, mutations fail loudly (fail-closed) — `rm` it to reset.

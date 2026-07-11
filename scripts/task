@@ -33,12 +33,7 @@ cmd_doctor() {
   gh auth status >/dev/null 2>&1 && pass "gh authenticated" || fail "gh not authenticated (run: gh auth login)"
   command -v node >/dev/null 2>&1 && pass "node $(node --version)" || warn "node missing (needed once stack is stamped)"
   command -v claude >/dev/null 2>&1 && pass "claude CLI present" || warn "claude CLI missing (this workflow runs inside Claude Code)"
-  if command -v codex >/dev/null 2>&1; then
-    pass "codex present ($(codex --version 2>/dev/null || echo installed))"
-    codex login status >/dev/null 2>&1 && pass "codex authenticated" || warn "codex not authenticated (run: codex login) — /consensus needs it"
-  else
-    warn "codex CLI missing (needed for /consensus; see docs/SETUP.md)"
-  fi
+  say "INFO  codex: DISABLED by policy 2026-07-11 (plan usage) — /consensus offline; /fm builds run on claude"
   [ -f "$REPO_ROOT/.claude/settings.json" ] && pass "hooks config present" || fail "hooks config missing (.claude/settings.json)"
   if [ -f "$REPO_ROOT/scripts/test-hooks.sh" ]; then
     bash "$REPO_ROOT/scripts/test-hooks.sh" >/dev/null 2>&1 && pass "hooks actually DENY (test-hooks.sh)" || fail "hooks did NOT deny — fail-open risk (run: bash scripts/test-hooks.sh)"

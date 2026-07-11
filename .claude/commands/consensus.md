@@ -4,6 +4,8 @@ argument-hint: <feature or task description>
 allowed-tools: Bash, Read, Write
 ---
 
+> **⛔ DISABLED 2026-07-11 (manager order):** codex is OUT — ChatGPT plan-usage trouble. Do NOT run this command. `/fm` builds run on headless claude (`scripts/fm-build.sh`). Re-enable only when Bader says so.
+
 # /consensus — cross-model plan → execute → review
 
 *Based on ECC multi-plan/multi-execute/model-route + santa-loop codex patterns.*

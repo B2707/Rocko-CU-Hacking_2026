@@ -9,8 +9,7 @@
 #   │                        │  🛠  OPS (plain shell)      │
 #   └────────────────────────┴────────────────────────────┘
 #
-# Codex note: /consensus runs INSIDE the Orchestrator pane — codex is a one-shot
-# subprocess it spawns, not a separate terminal. No extra pane needed by default.
+# Codex note: DISABLED 2026-07-11 (plan usage) — /consensus offline; /fm builds run headless claude.
 #
 # Usage:
 #   scripts/manager-up.sh [repo-path] [session-name]
@@ -53,10 +52,10 @@ trap 'tmux kill-session -t "$SESSION" 2>/dev/null || true; echo "manager-up fail
 # by design; permission prompts would stall River overnight. Guardrails stay
 # server-side (ruleset, review bot, machinery-paths rule, one-writer hook).
 
-# Pane 0 — Orchestrator (you): planning + /consensus (codex executes in-pane)
+# Pane 0 — Orchestrator (you): planning (codex disabled)
 tmux new-session -d -s "$SESSION" -n hq -c "$REPO"
 tmux send-keys -t "$SESSION:hq.0" \
-  "$SEAT; clear; printf '🧭 ORCHESTRATOR — planning · /consensus (codex runs here)\n\n'; claude --model opus --dangerously-skip-permissions" C-m
+  "$SEAT; clear; printf '🧭 ORCHESTRATOR — planning (codex disabled — /fm builds on claude)\n\n'; claude --model opus --dangerously-skip-permissions" C-m
 
 # Pane 1 — First Mate (River): AUTO-STARTS the loop. First-ever run on a fresh
 # clone: approve the folder-trust prompt once, then the loop flows.
