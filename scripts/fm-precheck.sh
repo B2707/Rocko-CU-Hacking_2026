@@ -7,7 +7,7 @@
 #   BUILD-OK      → exit 0
 #   TRIAGE-ONLY   → exit 1  (+ reason)
 #
-# Signals: PAUSE kill-switch · codex auth · night build cap (FM_NIGHT_BUILD_CAP,
+# Signals: PAUSE kill-switch · claude CLI · night build cap (FM_NIGHT_BUILD_CAP,
 # default 8) · review-bot budget (>10 claude-review runs in the last hour).
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,8 +17,8 @@ CAP="${FM_NIGHT_BUILD_CAP:-8}"
 if bash "$STATE_SH" paused? 2>/dev/null; then
   echo "TRIAGE-ONLY: PAUSE kill-switch set (rm data/context/fm/PAUSE to resume builds)"; exit 1
 fi
-if ! command -v codex >/dev/null 2>&1 || ! codex login status >/dev/null 2>&1; then
-  echo "TRIAGE-ONLY: codex unavailable/unauthenticated (run: codex login)"; exit 1
+if ! command -v claude >/dev/null 2>&1; then
+  echo "TRIAGE-ONLY: claude CLI missing"; exit 1
 fi
 bash "$STATE_SH" init >/dev/null 2>&1 || true
 builds="$(bash "$STATE_SH" get '.buildsThisWindow' 2>/dev/null || echo 0)"
@@ -30,4 +30,4 @@ runs="$(gh run list --workflow claude-review.yml --limit 40 --json createdAt \
 if [ "${runs:-0}" -gt 10 ]; then
   echo "TRIAGE-ONLY: review-bot budget hot ($runs runs in the last hour)"; exit 1
 fi
-echo "BUILD-OK: codex authed · builds $builds/$CAP · review-bot ${runs:-0}/hr"
+echo "BUILD-OK: claude builds (codex disabled) · builds $builds/$CAP · review-bot ${runs:-0}/hr"
