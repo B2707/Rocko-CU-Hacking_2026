@@ -9,14 +9,14 @@
 #
 #   fm-build <issue#>
 #
-# Env: FM_BUILD_MODEL (default sonnet) · FM_BUILD_TIMEOUT seconds (default 1800).
+# Env: FM_BUILD_MODEL (default opus) · FM_BUILD_TIMEOUT seconds (default 1800).
 set -euo pipefail
 
 ISSUE="${1:?usage: fm-build <issue#>}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STATE_SH="$HERE/fm-state.sh"
 REPO_ROOT="$(git rev-parse --path-format=absolute --git-common-dir | xargs dirname)"
-MODEL="${FM_BUILD_MODEL:-sonnet}"
+MODEL="${FM_BUILD_MODEL:-opus}"
 BUILD_TIMEOUT="${FM_BUILD_TIMEOUT:-1800}"
 TIMEOUT_BIN="$(command -v timeout || command -v gtimeout || true)"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
@@ -65,11 +65,11 @@ if [ "$status" -ne 0 ] || [ ! -s "$TMP/summary.txt" ]; then
   cleanup_wt; die "claude build failed (exit $status) or empty summary — no PR opened ($(tail -c 300 "$TMP/build-err.txt" 2>/dev/null))" failed 1
 fi
 
-# --- commit whatever codex produced (it may or may not have committed) ---
+# --- commit whatever the build produced (claude may or may not have committed) ---
 git -C "$wt" add -A
 ahead="$(git -C "$wt" log --oneline origin/main..HEAD 2>/dev/null || true)"
 if git -C "$wt" diff --cached --quiet && [ -z "$ahead" ]; then
-  cleanup_wt; echo "fm-build: codex produced no changes for #$ISSUE — no-op"; result no-op "$BR" null; exit 0
+  cleanup_wt; echo "fm-build: build produced no changes for #$ISSUE — no-op"; result no-op "$BR" null; exit 0
 fi
 git -C "$wt" diff --cached --quiet || git -C "$wt" commit -q -m "feat: implement #$ISSUE ($slug)
 
