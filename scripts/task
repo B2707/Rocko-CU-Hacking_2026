@@ -166,6 +166,9 @@ cmd_propose() {
 }
 
 sub="${1:?usage: task <doctor|start|ship|gotcha|propose> ...}"; shift || true
+# Presence beat: every task command pulses the console wall (fire-and-forget,
+# backgrounded — a dead console must never block or slow a team command).
+[ -x "$REPO_ROOT/scripts/heartbeat.sh" ] && ( bash "$REPO_ROOT/scripts/heartbeat.sh" "task:$sub" >/dev/null 2>&1 & )
 case "$sub" in
   doctor)  cmd_doctor "$@" ;;
   start)   cmd_start "$@" ;;
