@@ -46,21 +46,29 @@ fi
 # If setup dies mid-build, remove the half-built session so re-runs start clean.
 trap 'tmux kill-session -t "$SESSION" 2>/dev/null || true; echo "manager-up failed — partial session removed" >&2' ERR
 
+# Model routing (Bader): Opus = planner/executor tier for both agent panes;
+# /model fable manually for senior/original planning moments. Explicit models
+# always — panes must never inherit whatever the default happens to be.
+# --dangerously-skip-permissions (Bader 2026-07-10): the cockpit is unattended
+# by design; permission prompts would stall River overnight. Guardrails stay
+# server-side (ruleset, review bot, machinery-paths rule, one-writer hook).
+
 # Pane 0 — Orchestrator (you): planning + /consensus (codex executes in-pane)
 tmux new-session -d -s "$SESSION" -n hq -c "$REPO"
 tmux send-keys -t "$SESSION:hq.0" \
-  "$SEAT; clear; printf '🧭 ORCHESTRATOR — planning · /consensus (codex runs here)\n\n'; claude" C-m
+  "$SEAT; clear; printf '🧭 ORCHESTRATOR — planning · /consensus (codex runs here)\n\n'; claude --model opus --dangerously-skip-permissions" C-m
 
 # Pane 1 — First Mate (River): AUTO-STARTS the loop. First-ever run on a fresh
-# clone: approve the hooks-trust prompt once, then the loop flows.
+# clone: approve the folder-trust prompt once, then the loop flows.
 tmux split-window -h -t "$SESSION:hq" -c "$REPO"
 tmux send-keys -t "$SESSION:hq.1" \
-  "$SEAT; clear; printf '⚓ FIRST MATE (River) — auto /loop 10m /fm · morning: /fm ack · pause: touch data/context/fm/PAUSE\n\n'; claude '/loop 10m /fm'" C-m
+  "$SEAT; clear; printf '⚓ FIRST MATE (River) — auto /loop 10m /fm · morning: /fm ack · pause: touch data/context/fm/PAUSE\n\n'; claude --model opus --dangerously-skip-permissions '/loop 10m /fm'" C-m
 
-# Pane 2 — Ops: plain shell (git, gh, drills, tripwire kicker) — NO agent
+# Pane 2 — Ops: plain shell (git, gh, drills, tripwire kicker) — NO agent.
+# Also starts the manager presence beat (console seat panel) in the background.
 tmux split-window -v -t "$SESSION:hq.1" -c "$REPO"
 tmux send-keys -t "$SESSION:hq.2" \
-  "$SEAT; clear; printf '🛠  OPS — plain shell · during the event run: bash scripts/tripwire-kicker.sh\n\n'" C-m
+  "$SEAT; clear; printf '🛠  OPS — plain shell · during the event run: bash scripts/tripwire-kicker.sh\n\n'; (bash scripts/heartbeat.sh --loop 300 >/dev/null 2>&1 &)" C-m
 
 tmux select-layout -t "$SESSION:hq" main-vertical
 tmux select-pane -t "$SESSION:hq.0"
