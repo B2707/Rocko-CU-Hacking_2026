@@ -43,6 +43,13 @@ jobs:
           # Explicit token skips the OIDC/GitHub-App exchange — no dependency
           # on the Claude GitHub App being installed on the repo.
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          # The Day-0 stamp app (ecc-tools[bot]) is the triggering actor on nearly
+          # every PR, so the action's actor gate rejected the run before the model
+          # ran ("Workflow initiated by non-human actor") and no verdict file was
+          # written — the gate failed closed on every PR. Allowlist that ONE bot by
+          # name (not '*'); the action strips the [bot] suffix when matching. Fork
+          # PRs are still excluded (line 29) and permissions stay read-only.
+          allowed_bots: ecc-tools
           claude_args: '--max-turns 30 --max-budget-usd 5 --allowedTools "Read,Grep,Glob,Write,Bash(git diff:*),Bash(git log:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*)"'
           prompt: |
             You are the team's review bot for PR #${{ github.event.pull_request.number }}
