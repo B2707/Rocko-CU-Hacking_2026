@@ -62,24 +62,32 @@ static int wk_is_hey(const char *t) {
     return wk_in_set(t, S, sizeof(S) / sizeof(S[0]));
 }
 static int wk_is_rocko(const char *t) {
-    /* "rockö" tokenizes to "rock"; keep the common homophones. */
-    static const char *const S[] = {"rocko", "rocco", "roko", "rock",
-                                    "rocky", "rockoh", "rockho", "roco"};
+    /* F6: kept deliberately tight - only near-homophones of "rocko". "rock",
+     * "rocky", "rockho", "roco" are dropped: casual speech like "hey rocky
+     * helps me..." must NOT open the gate and fire a false alarm. */
+    static const char *const S[] = {"rocko", "rocco", "roko", "rockoh"};
     return wk_in_set(t, S, sizeof(S) / sizeof(S[0]));
 }
 static int wk_is_help(const char *t) {
-    static const char *const S[] = {"help", "halp", "helps"};
+    /* F6: "helps" dropped - "helps" is a common ordinary word, not the cue. */
+    static const char *const S[] = {"help", "halp"};
     return wk_in_set(t, S, sizeof(S) / sizeof(S[0]));
 }
 
 /*
  * If the wake phrase "hey rocko help" (or a whisper variant) appears as three
- * consecutive tokens, return a pointer into the ORIGINAL text at the start of
+ * consecutive stages - one-or-more "hey", then one-or-more "rocko", then
+ * one-or-more "help" - return a pointer into the ORIGINAL text at the start of
  * whatever follows (leading separators skipped). Returns:
  *   - NULL              if the wake phrase is not present (gate closed)
  *   - pointer to '\0'   if the phrase is present but nothing follows (SOS)
  *   - pointer to phrase otherwise
  * Uses the FIRST occurrence of the phrase.
+ *
+ * F6: each stage accepts consecutive DUPLICATES of an accepted token, so a
+ * stutter like "hey rocko rocko help" (or "hey hey rocko help") still fires.
+ * Only same-stage repeats are collapsed; a stray "help" or "rocko" elsewhere
+ * in normal speech never opens the gate.
  */
 static const char *after_wake_word(const char *text) {
     char toks[WK_TOKS_MAX][WK_TOK_MAX];
@@ -93,13 +101,21 @@ static const char *after_wake_word(const char *text) {
         ends[nt] = end;
         nt++;
     }
-    for (int i = 0; i + 2 < nt; i++) {
-        if (wk_is_hey(toks[i]) && wk_is_rocko(toks[i + 1]) &&
-            wk_is_help(toks[i + 2])) {
-            const char *rest = ends[i + 2];
-            while (*rest && !isalnum((unsigned char)*rest)) rest++;
-            return rest;
-        }
+    for (int i = 0; i < nt; i++) {
+        int j = i;
+        int n;
+        n = 0;
+        while (j < nt && wk_is_hey(toks[j])) { j++; n++; }
+        if (n == 0) continue;                 /* need at least one "hey" */
+        n = 0;
+        while (j < nt && wk_is_rocko(toks[j])) { j++; n++; }
+        if (n == 0) continue;                 /* need at least one "rocko" */
+        int help_end = -1;
+        while (j < nt && wk_is_help(toks[j])) { help_end = j; j++; }
+        if (help_end < 0) continue;           /* need at least one "help" */
+        const char *rest = ends[help_end];
+        while (*rest && !isalnum((unsigned char)*rest)) rest++;
+        return rest;
     }
     return NULL;
 }

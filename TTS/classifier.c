@@ -154,11 +154,26 @@ static void run_one(const char *text) {
             fflush(stdout);
             return;
         }
+        /* F1: a wake-gated cancel word wins ONLY when there is no emergency
+         * class or keyword - emergency content always outranks a cancel word.
+         * We remove the cancel words (and grammar filler the tiny model
+         * over-fits) and ask whether a confident emergency still remains: so
+         * "i am okay" cancels, but "i am trapped, okay" transmits trapped. */
         if (has_cancel_keyword(phrase)) {
-            /* wake-gated cancel wins over any classification */
-            printf("stop (1.00) | %s\n", phrase);
-            fflush(stdout);
-            return;
+            char remainder[MAX_LINE];
+            strip_cancel_and_filler(phrase, remainder, sizeof(remainder));
+            double rprobs[NUM_CLASSES];
+            int rcls = remainder[0] ? classify(remainder, rprobs) : -1;
+            int emergency =
+                has_emergency_keyword(phrase) ||
+                (rcls >= 0 && strcmp(CLASS_NAMES[rcls], "none") != 0 &&
+                 rprobs[rcls] >= CONF_THRESHOLD);
+            if (!emergency) {
+                printf("stop (1.00) | %s\n", phrase);
+                fflush(stdout);
+                return;
+            }
+            /* emergency content present -> fall through to normal output */
         }
     }
 
