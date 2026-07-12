@@ -31,10 +31,13 @@ python3 train.py            # prints CV accuracy, writes model.h
 ### 2. Build + test (laptop)
 ```bash
 make            # native binary
-make test       # run sample utterances
+make test       # run sample utterances (raw, no wake gate)
+make gate-test  # prove the wake gate: no-wake lines print NOTHING
 echo "i think i broke my ankle" | ./classifier --raw
-# without --raw the wake-word gate applies: prefix the phrase with "device"
-echo "device i think i broke my ankle" | ./classifier
+# without --raw the wake gate applies: say the wake phrase "hey rocko help"
+echo "hey rocko help i think i broke my ankle" | ./classifier   # -> injured
+echo "hey rocko help" | ./classifier                            # -> sos (phrase alone)
+echo "i think i broke my ankle" | ./classifier                  # -> (nothing: gate closed)
 ```
 
 ### 3. Improve accuracy

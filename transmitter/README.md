@@ -39,8 +39,9 @@ after any emergency sequence the heartbeat timer resets to now + 120 s.
 Spool tokens `stop` / `cancel` / `clear` / `ok` (case-insensitive) finish
 the current frame cleanly, abort the remaining repeats, clear the pending
 queue, and resume the heartbeat schedule (timer reset). Saying
-"device stop" (or "device cancel" / "device I am okay") into the mic does
-exactly this via `live_listen.sh`.
+"hey rocko help stop" (or "... cancel" / "... I am okay") into the mic does
+exactly this via `live_listen_qnx.sh` — the cancel word is wake-gated, so a
+stray "stop" in conversation never clears a real emergency.
 
 ## Wiring (BCM numbering)
 
