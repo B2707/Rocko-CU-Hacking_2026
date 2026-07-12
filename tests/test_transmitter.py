@@ -317,6 +317,34 @@ class BeaconLoopTests(unittest.TestCase):
         # no heartbeat trails the sequence: timer resets to 67 + 30
         self.assertEqual(self.starts(beacon), [25.0, 40.0, 55.0, 97.0])
 
+    def test_frame_progress_and_signal_sent_logged(self):
+        # E6: one full emergency sequence logs per-frame progress, then a single
+        # SIGNAL SENT event AFTER the last frame finishes (with its 4-bit code).
+        hook = self.spool_writer([(1.0, "injured\n")])
+        _, _, beacon = self.make_beacon(sleep_hook=hook)
+        with self.assertLogs("beacon", level="INFO") as logs:
+            beacon.run(max_frames=3)
+        out = "\n".join(logs.output)
+        self.assertIn("frame 1/3", out)
+        self.assertIn("frame 3/3", out)
+        self.assertIn("SIGNAL SENT", out)
+        self.assertIn("injured (0001)", out)  # E4 code rides with the label
+        # SIGNAL SENT must come only after the final frame's completion
+        signal_idx = out.index("SIGNAL SENT")
+        last_done = out.rindex("tx done: emergency injured (0001) frame 3/3")
+        self.assertGreater(signal_idx, last_done)
+        self.assertEqual(self.kinds(beacon), ["emergency"] * 3)
+
+    def test_no_signal_sent_when_sequence_aborted(self):
+        # a stop mid-sequence aborts the repeats -> NO SIGNAL SENT event
+        hook = self.spool_writer([(1.0, "fire\n"), (17.0, "lost\nstop\n")])
+        _, _, beacon = self.make_beacon(sleep_hook=hook)
+        with self.assertLogs("beacon", level="INFO") as logs:
+            beacon.run(max_frames=3)
+        out = "\n".join(logs.output)
+        self.assertIn("aborted", out)
+        self.assertNotIn("SIGNAL SENT", out)
+
     def test_cleanup_on_interrupt_mid_frame(self):
         def hook(clock):
             if clock.now >= 31.0:  # inside the first heartbeat frame
@@ -399,6 +427,44 @@ class LockAndCliTests(unittest.TestCase):
         )
         self.assertEqual(rc, 0)
         self.assertFalse(os.path.exists(spool))  # queue never survives a run
+
+
+class LabelAndLogFormatTests(unittest.TestCase):
+    """E4 coded labels + the --log-plain format rocko.sh relies on."""
+
+    def test_coded_label_carries_the_four_bit_code(self):
+        self.assertEqual(
+            transmitter.coded_label(transmitter.FLAG_INJURED), "injured (0001)"
+        )
+        self.assertEqual(transmitter.coded_label(transmitter.SOS_FLAGS), "SOS (1111)")
+        self.assertEqual(
+            transmitter.coded_label(transmitter.HEARTBEAT_FLAGS), "heartbeat (0000)"
+        )
+        combo = transmitter.FLAG_TRAPPED | transmitter.FLAG_INJURED
+        self.assertEqual(transmitter.coded_label(combo), "trapped+injured (0101)")
+
+    def _run_oneshot(self, extra):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        log = os.path.join(tmp.name, "beacon.log")
+        rc = transmitter.main(
+            ["--sim", "--send", "injured", "--log-file", log,
+             "--bit-seconds", "0.125", "--carrier", "16", *extra]
+        )
+        self.assertEqual(rc, 0)
+        return [ln for ln in Path(log).read_text().splitlines() if ln.strip()]
+
+    def test_log_plain_drops_timestamp_and_level(self):
+        lines = self._run_oneshot(["--log-plain"])
+        self.assertTrue(
+            any(ln.startswith("tx start: one-shot injured (0001)") for ln in lines)
+        )
+        # bare format: no asctime prefix (which would start with a 4-digit year)
+        self.assertFalse(any(ln[:4].isdigit() for ln in lines))
+
+    def test_standalone_log_keeps_timestamp(self):
+        lines = self._run_oneshot([])
+        self.assertTrue(any(ln[:4].isdigit() for ln in lines))  # asctime year
 
 
 if __name__ == "__main__":
