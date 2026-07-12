@@ -636,8 +636,12 @@ def _raise_exit(signum, _frame):
 
 def _setup_logging(log_path: str, plain: bool = False) -> None:
     LOG.setLevel(logging.INFO)
-    for handler in list(LOG.handlers):  # idempotent across repeated calls
+    for handler in list(LOG.handlers):  # idempotent; close to avoid leaking fds
         LOG.removeHandler(handler)
+        try:
+            handler.close()
+        except OSError:
+            pass
     # rocko.sh owns numbering + timestamps for the unified stream, so it runs us
     # with --log-plain (bare messages); standalone we keep asctime + level.
     fmt = logging.Formatter(
