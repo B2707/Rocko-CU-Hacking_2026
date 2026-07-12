@@ -39,6 +39,11 @@ PHOTO_IMAGE=${ROCKO_PHOTO_IMAGE:-$CNN_DIR/demo.jpg}
 PY=${PYTHON:-python3}
 MIC_NODE=${MIC_NODE:-/dev/snd/pcmC0D0c}
 SND_CONF=${SND_CONF:-/etc/system/config/sound/io_snd.conf}
+# Sudo password for the sanctioned Decision-2 audio bring-up. Read from a
+# Pi-local file OUTSIDE the repo (never committed); created at deploy time -
+# see docs/plan/rocko-deploy.md. Missing/unreadable/empty -> auto bring-up is
+# skipped and the exact manual command is printed instead.
+PASS_FILE=${ROCKO_PASS_FILE:-${HOME:-$ROCKO_HOME}/.rocko_pass}
 SPOOL=${BEACON_SPOOL:-/tmp/beacon_trigger}
 LOG=${ROCKO_LOG:-/tmp/rocko.log}
 ROCKO_PID=${ROCKO_PID:-/tmp/rocko.pid}
@@ -92,13 +97,26 @@ ensure_audio() {
     fi
     emit "audio: mic node $MIC_NODE absent - bringing io-snd up (decision 2)"
     # The one sanctioned automatic restart: slay io-snd, relaunch from config.
-    # F11: io-snd is a long-lived daemon - it must NOT inherit fd 3 (the event
-    # FIFO) or it would hold the write end open and Ctrl+C would hang forever
-    # waiting for the numberer to drain. Close fd 3 for this command and discard
-    # its own chatter; the mic-node check below reports the real outcome.
-    if ! echo qnxuser | sudo -S sh -c "slay io-snd; io-snd -c $SND_CONF" \
-            >/dev/null 2>&1 3>&-; then
-        emit "ERROR audio bring-up command failed"
+    # The sudo password is read from PASS_FILE (a Pi-local file outside the repo)
+    # and streamed straight into `sudo -S`, so it never appears in the script
+    # text or the process table. If PASS_FILE is missing/unreadable/empty we do
+    # NOT guess or embed a password: skip the auto-fix and print the exact
+    # manual command - the same clean degrade as choosing the manual option.
+    manual_cmd="sudo sh -c 'slay io-snd; io-snd -c $SND_CONF'"
+    if [ ! -r "$PASS_FILE" ] || [ ! -s "$PASS_FILE" ]; then
+        emit "ERROR audio: no readable pass-file at $PASS_FILE - skipping auto bring-up"
+        emit "  bring the mic up manually on the Pi:  $manual_cmd"
+    else
+        # F11: io-snd is a long-lived daemon - it must NOT inherit fd 3 (the
+        # event FIFO) or it would hold the write end open and Ctrl+C would hang
+        # forever waiting for the numberer to drain. Close fd 3 for this command
+        # and discard its own chatter; the mic-node check below reports the real
+        # outcome.
+        if ! sudo -S sh -c "slay io-snd; io-snd -c $SND_CONF" \
+                < "$PASS_FILE" >/dev/null 2>&1 3>&-; then
+            emit "ERROR audio bring-up command failed"
+            emit "  bring the mic up manually on the Pi:  $manual_cmd"
+        fi
     fi
     i=0
     while [ ! -e "$MIC_NODE" ] && [ "$i" -lt "$AUDIO_WAIT" ]; do
