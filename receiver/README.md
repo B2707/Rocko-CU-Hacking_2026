@@ -2,7 +2,9 @@
 
 This directory contains the current receiver pipeline used with the Pico serial
 sampler. It is intentionally split into small command-line programs so a new
-GUI can reuse the CSV format and decoder while replacing Matplotlib.
+GUI can reuse the CSV format and decoder while replacing Matplotlib. See
+[`ALGORITHM.md`](ALGORITHM.md) for the complete protocol, DSP equations,
+pseudocode, tone detector, and suggested GUI integration points.
 
 ## Data contract
 
