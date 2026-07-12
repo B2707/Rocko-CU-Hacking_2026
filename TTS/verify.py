@@ -28,7 +28,7 @@ for t in tests:
     py_i = proba.argmax()
     py_class, py_p = clf.classes_[py_i], proba[py_i]
 
-    out = subprocess.run(["./classifier", t], capture_output=True, text=True).stdout
+    out = subprocess.run(["./classifier", "--raw", t], capture_output=True, text=True).stdout
     m = re.match(r"(?:uncertain \(top=)?(\w+)\)? \(?([\d.]+)", out)
     c_class, c_p = m.group(1), float(m.group(2))
 

@@ -6,7 +6,8 @@
  * No dependencies beyond libc + libm. Build:
  *   cc -O2 -o classifier classifier.c -lm
  * Use:
- *   echo "i'm lost in the woods" | ./classifier
+ *   echo "device i'm lost in the woods" | ./classifier   (wake-word gated)
+ *   echo "i'm lost in the woods" | ./classifier --raw    (no wake-word gate)
  *   ./whisper-cli ... | ./classifier          (pipe transcripts in, one per line)
  */
 #include <stdio.h>
@@ -17,6 +18,9 @@
 #include "keyword_override.h"
 #include "wake_word.h"
 
+/* NOTE: train.py's analyze() has no token/line caps; these bounds are an
+ * intentional C-side divergence — spoken commands are short, and anything
+ * past 64 tokens contributes almost nothing after L2 normalization. */
 #define MAX_TOKENS 64
 #define MAX_GRAM   160
 #define MAX_LINE   1024
@@ -121,9 +125,14 @@ int classify(const char *text, double *probs) {
 }
 
 /* ---- CLI: classify each stdin line, or a single argv string --------- */
+
+/* --raw: skip the wake-word gate and classify the text as-is. Used by
+ * make test / verify.py / README examples; the live mic path stays gated. */
+static int raw_mode = 0;
+
 static void run_one(const char *text) {
     /* voice-activation gate: only classify the phrase after the wake word */
-    const char *phrase = after_wake_word(text);
+    const char *phrase = raw_mode ? text : after_wake_word(text);
     if (phrase == NULL || *phrase == '\0')
         return;   /* no wake word (or nothing after it) -> stay silent */
 
@@ -143,6 +152,11 @@ static void run_one(const char *text) {
 }
 
 int main(int argc, char **argv) {
+    if (argc > 1 && strcmp(argv[1], "--raw") == 0) {
+        raw_mode = 1;
+        argv++;
+        argc--;
+    }
     if (argc > 1) {                       /* classify the argument */
         char joined[MAX_LINE] = {0};
         for (int i = 1; i < argc; i++) {

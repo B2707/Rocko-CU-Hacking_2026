@@ -32,7 +32,9 @@ python3 train.py            # prints CV accuracy, writes model.h
 ```bash
 make            # native binary
 make test       # run sample utterances
-echo "i think i broke my ankle" | ./classifier
+echo "i think i broke my ankle" | ./classifier --raw
+# without --raw the wake-word gate applies: prefix the phrase with "device"
+echo "device i think i broke my ankle" | ./classifier
 ```
 
 ### 3. Improve accuracy

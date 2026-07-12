@@ -35,7 +35,7 @@ test: classifier
 	  "there's smoke everywhere" \
 	  "i'm stuck and can't get out" \
 	  "what's the weather today" \
-	  | ./classifier
+	  | ./classifier --raw
 
 clean:
 	rm -f classifier classifier_qnx interactive
