@@ -1,59 +1,104 @@
 #!/bin/sh
 #
-# live_listen.sh (QNX) - live captions + wake-word emergency classifier.
-#   USB mic -> waverec (5s chunks) -> whisper.cpp -> classifier (gated on "device")
+# live_listen_qnx.sh (QNX) - live captions + wake-phrase emergency classifier.
+#   USB mic -> waverec (5 s chunks) -> whisper.cpp -> classifier (single gate)
 #
-# Every transcript prints like a live caption. If the wake word "device" is
-# heard, the phrase after it goes through the emergency classifier and any
-# hit prints as an unmissable banner. Ctrl+C to quit.
+# Every transcript prints like a live caption. The classifier is THE gate: a
+# chunk is piped in raw and only reacts if it contains the wake phrase
+# "hey rocko help". Phrase-alone -> SOS; wake-gated stop/cancel -> cancel;
+# otherwise the classified emergency class is queued to the beacon spool.
 #
-# QNX rewrite of TTS/live_listen.sh (the Linux/WSL original). POSIX sh only
-# (/bin/sh is ksh on QNX 8). Paths are absolute so it runs from any cwd.
-# Double-buffered: the next chunk records in the background while the
-# previous chunk is being transcribed, so almost no speech is missed.
+# There is deliberately NO shell-side wake matching and NO cross-chunk arming
+# window: the old arming window prepended a fake wake word to any utterance for
+# 10 s after a wake mention, which let emergency content with no wake phrase
+# transmit (the E2 no-wake bug). The single choke point now lives in the C
+# classifier's after_wake_word(); this script never fabricates a wake word.
+#
+# POSIX sh only (/bin/sh is ksh on QNX 8). Absolute paths so it runs from any
+# cwd. Double-buffered: the next chunk records in the background while the
+# previous chunk is transcribed, so almost no speech is missed.
+#
+# Normally launched by rocko.sh, which numbers + timestamps every line and
+# mirrors them to a log. Standalone it prints its own [HH:MM:SS] caption stamp.
+# Set ROCKO_NUMBERED=1 to suppress the local stamp (rocko owns numbering).
 
 WHISPER=/data/home/qnxuser/whisper.cpp/build/bin/whisper-cli
 MODEL=/data/home/qnxuser/whisper.cpp/models/ggml-tiny.en.bin
 CLASSIFIER=/data/home/qnxuser/audio/classifier
 
-MIC=plughw:pcmC0D0c        # USB mic
-CHUNK=5                    # seconds per recording chunk
-WAKE=device                # wake word (keep in sync with wake_word.h)
-LISTEN_WINDOW=10           # seconds we stay "armed" after hearing the wake word
-BEACON_SPOOL=/tmp/beacon_trigger   # consumed by transmitter/transmitter.py (coil beacon)
+MIC=plughw:pcmC0D0c              # USB mic (ALSA-style name for waverec)
+MIC_NODE=/dev/snd/pcmC0D0c       # capture device node (existence = mic present)
+CHUNK=5                          # seconds per recording chunk
+WAKE_PHRASE="hey rocko help"     # spoken wake phrase (matched in wake_word.h)
+COOLDOWN=8                       # seconds to suppress repeat fires (chunk overlap)
+BEACON_SPOOL=/tmp/beacon_trigger # consumed by transmitter/transmitter.py (coil)
 
 WAV_A=/tmp/live_listen_a.$$.wav
 WAV_B=/tmp/live_listen_b.$$.wav
 rec_pid=""
 
+# --- event output -------------------------------------------------------
+# One clean line per event so rocko.sh's numberer can prefix [#NNNN] + time.
+emit() {
+    printf '%s\n' "$*"
+}
+caption() {
+    if [ -n "${ROCKO_NUMBERED:-}" ]; then
+        printf 'heard: %s\n' "$1"
+    else
+        printf '[%s] heard: %s\n' "$(date +%H:%M:%S)" "$1"
+    fi
+}
+
+# 4-bit code for a single emergency class (E4: every emergency line shows it).
+code_for() {
+    case "$1" in
+        fire)    echo 1000 ;;
+        trapped) echo 0100 ;;
+        lost)    echo 0010 ;;
+        injured) echo 0001 ;;
+        sos)     echo 1111 ;;
+        *)       echo "----" ;;
+    esac
+}
+
+spool_write() {
+    # Append one token to the beacon spool; ERROR event on failure (E8).
+    if printf '%s\n' "$1" >> "$BEACON_SPOOL" 2>/dev/null; then
+        return 0
+    fi
+    emit "ERROR beacon spool write failed ($BEACON_SPOOL) - trigger '$1' dropped"
+    return 1
+}
+
 cleanup() {
     trap - INT TERM
     [ -n "$rec_pid" ] && kill "$rec_pid" 2>/dev/null
     rm -f "$WAV_A" "$WAV_B"
-    echo ""
-    echo "stopped."
+    emit "listener stopped."
     exit 0
 }
 trap cleanup INT TERM
 
 for p in "$WHISPER" "$MODEL" "$CLASSIFIER"; do
     if [ ! -e "$p" ]; then
-        echo "missing: $p" >&2
+        emit "ERROR missing required file: $p"
         exit 1
     fi
 done
 
-echo "Cave Beacon live listen | mic=$MIC | model=tiny.en | chunk=${CHUNK}s"
-echo "Say: \"$WAKE <your emergency>\" (e.g. \"$WAKE I am lost\"; adding \"help\" forces an alert). Ctrl+C to quit."
-echo "----------------------------------------------------------------"
+emit "Rocko live listen | mic=$MIC | model=tiny.en | chunk=${CHUNK}s"
+emit "Say: \"$WAKE_PHRASE <emergency>\" (e.g. \"$WAKE_PHRASE I am lost\")."
+emit "Say \"$WAKE_PHRASE\" alone for SOS; \"$WAKE_PHRASE stop\" to cancel. Ctrl+C to quit."
 
-# Record the first chunk in the background; from then on the loop always has
-# one recording in flight while it transcribes the previous one.
+# First chunk records in the background; from then on the loop always has one
+# recording in flight while it transcribes the previous one.
 waverec -D "$MIC" -r 16000 -c 1 -f S16_LE -t "$CHUNK" "$WAV_A" >/dev/null 2>&1 &
 rec_pid=$!
 cur=$WAV_A
 nxt=$WAV_B
-armed_until=0
+cooldown_until=0
+mic_warned=0
 
 while :; do
     wait "$rec_pid"
@@ -64,82 +109,74 @@ while :; do
     rec_pid=$!
 
     if [ "$rec_ok" -ne 0 ]; then
-        echo "(mic read failed, retrying)"
+        # E8: mic read failed. Distinguish a vanished device from a transient
+        # glitch. Never crash the loop; the sanctioned io-snd auto-fix lives in
+        # rocko.sh (decision 2) - the listener only reports and keeps retrying.
+        if [ ! -e "$MIC_NODE" ]; then
+            if [ "$mic_warned" -eq 0 ]; then
+                emit "ERROR mic vanished: $MIC_NODE absent - re-run rocko.sh to auto-fix audio"
+                mic_warned=1
+            fi
+        else
+            emit "ERROR mic read failed (device present) - retrying"
+        fi
         sleep 1
-    else
-        # transcribe the finished chunk; collapse to one trimmed line
-        text=$("$WHISPER" -m "$MODEL" -f "$cur" -nt -np 2>/dev/null \
-               | tr '\n' ' ' | tr -s ' ' | sed 's/^ *//; s/ *$//')
+        t=$cur; cur=$nxt; nxt=$t
+        continue
+    fi
+    [ "$mic_warned" -eq 1 ] && { emit "mic recovered: $MIC_NODE present"; mic_warned=0; }
 
-        case "$text" in
-        ''|'['*']'|'('*')')
-            :   # blank or a pure noise annotation like [BLANK_AUDIO] -> skip quietly
+    # transcribe the finished chunk; collapse to one trimmed line
+    text=$("$WHISPER" -m "$MODEL" -f "$cur" -nt -np 2>/dev/null \
+           | tr '\n' ' ' | tr -s ' ' | sed 's/^ *//; s/ *$//')
+
+    case "$text" in
+    ''|'['*']'|'('*')')
+        : ;;   # E8: blank / whisper-crash / pure noise annotation -> skip quietly
+    *)
+        caption "$text"
+
+        # SINGLE GATE: pipe the raw transcript straight to the classifier. It
+        # prints nothing unless the wake phrase is present, so no wake = no
+        # spool write = no transmission (E2). fail-closed on classifier error.
+        if ! line=$(printf '%s\n' "$text" | "$CLASSIFIER" 2>/dev/null); then
+            emit "ERROR classifier failed - fail-closed, no transmit this chunk"
+            t=$cur; cur=$nxt; nxt=$t
+            continue
+        fi
+        [ -z "$line" ] && { t=$cur; cur=$nxt; nxt=$t; continue; }  # gate closed
+
+        cls=${line%% *}
+        case "$line" in *"[help]"*) cls=sos ;; esac
+
+        now=$(date +%s)
+        if [ "$now" -lt "$cooldown_until" ]; then
+            emit "cooldown: ignoring repeat '$cls' (anti double-fire)"
+            t=$cur; cur=$nxt; nxt=$t
+            continue
+        fi
+
+        case "$cls" in
+        stop)
+            if spool_write stop; then
+                emit "CANCELLED -> stop sent to beacon (queue cleared)"
+                cooldown_until=$((now + COOLDOWN))
+            fi
+            ;;
+        fire|injured|lost|trapped|sos)
+            code=$(code_for "$cls")
+            if spool_write "$cls"; then
+                emit "EMERGENCY -> $cls ($code) queued to beacon"
+                cooldown_until=$((now + COOLDOWN))
+            fi
             ;;
         *)
-            echo "[$(date +%H:%M:%S)] $text"
-
-            lower=$(printf '%s' "$text" | tr 'A-Z' 'a-z')
-            now=$(date +%s)
-            alert=""
-            gated=""
-            case " $lower " in
-            *[!a-z0-9]"$WAKE"[!a-z0-9]*)
-                # wake word in this chunk: the classifier strips everything
-                # up to it. Stay armed in case the command spills into the
-                # next chunk (same behavior as the Linux script).
-                alert=$(printf '%s\n' "$text" | "$CLASSIFIER")
-                armed_until=$((now + LISTEN_WINDOW))
-                gated=1
-                ;;
-            *)
-                if [ "$now" -lt "$armed_until" ]; then
-                    # wake word was heard just before: treat this whole
-                    # chunk as the command, then disarm.
-                    alert=$(printf '%s %s\n' "$WAKE" "$text" | "$CLASSIFIER")
-                    armed_until=0
-                    gated=1
-                fi
-                ;;
-            esac
-
-            # Voice off-switch: a wake-gated "stop" / "cancel" / "I am okay"
-            # ("device stop") cancels the beacon's emergency queue. Wins over
-            # any classifier hit in the same phrase.
-            if [ -n "$gated" ]; then
-                case " $lower " in
-                *[!a-z0-9]stop[!a-z0-9]*|*[!a-z0-9]cancel[!a-z0-9]*|*"i am okay"*|*"i'm okay"*)
-                    printf 'stop\n' >> "$BEACON_SPOOL" \
-                        || echo "(beacon spool write failed: $BEACON_SPOOL)" >&2
-                    echo "--- ================================================== ---"
-                    echo "---  CANCELLED  ->  stop sent to beacon (queue cleared)"
-                    echo "--- ================================================== ---"
-                    alert=""
-                    ;;
-                esac
-            fi
-
-            if [ -n "$alert" ]; then
-                echo "!!! ========================================================== !!!"
-                echo "!!!  EMERGENCY  ->  $alert"
-                echo "!!! ========================================================== !!!"
-
-                # Hand the hit to the coil beacon daemon: the first token of
-                # the classifier line is the class; a "[help]" marker forces
-                # SOS. "uncertain" / "none" lines never transmit.
-                cls=${alert%% *}
-                case "$alert" in
-                *"[help]"*) cls=sos ;;
-                esac
-                case "$cls" in
-                fire|injured|lost|trapped|sos)
-                    printf '%s\n' "$cls" >> "$BEACON_SPOOL" \
-                        || echo "(beacon spool write failed: $BEACON_SPOOL)" >&2
-                    ;;
-                esac
-            fi
+            # uncertain / none: heard a wake-gated command but nothing to send
+            emit "heard command, no transmit: $line"
             ;;
         esac
-    fi
+        ;;
+    esac
 
     # swap buffers
     t=$cur; cur=$nxt; nxt=$t
