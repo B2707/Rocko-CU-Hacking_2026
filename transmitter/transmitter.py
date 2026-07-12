@@ -19,11 +19,15 @@ Frame (12 bits, ~12 s)
     "help" keyword override), combinations legal (0101 = trapped+injured).
 
 Behavior
-    Long-running beacon: heartbeat frame every 120 s. Emergency triggers are
-    read from a spool file (class names or 4-bit flag strings); a frame that
-    is mid-transmission is always finished first, then the emergency frame is
-    sent 3x with 3 s gaps and the heartbeat schedule resumes. Also a one-shot
-    CLI mode for bench tests: transmitter.py --send injured
+    Long-running beacon. Transmits NOTHING at launch: the first heartbeat
+    fires one full period (120 s) after start; emergencies may transmit any
+    time. Emergency triggers are read from a spool file (class names or
+    4-bit flag strings); a frame that is mid-transmission is always finished
+    first, then the pending flags (OR-merged, duplicates debounced) go out
+    3x with 3 s gaps and the heartbeat schedule resets. Spool tokens
+    stop/cancel/clear/ok finish the current frame, abort remaining repeats,
+    and clear the queue. Stale spool + stale pidfile are cleared at startup.
+    Also a one-shot CLI mode for bench tests: transmitter.py --send injured
 
 Wiring (BCM): GPIO22 -> IN3, GPIO17 -> IN4, GPIO27 -> ENB, coil on OUT3/OUT4.
 """
@@ -41,6 +45,7 @@ from dataclasses import dataclass, replace
 from typing import Callable, Sequence
 
 LOG = logging.getLogger("beacon")
+LOG.addHandler(logging.NullHandler())
 
 # --- frame contract (docs/equipment-codes.md; change only by telling everyone)
 PREAMBLE_BITS = "01111110"
@@ -61,9 +66,12 @@ CLASS_FLAGS = {
 }
 SOS_ALIASES = ("sos", "help")
 NO_OP_CLASSES = ("none",)  # classifier's "none" never triggers a transmission
+STOP_TOKENS = ("stop", "cancel", "clear", "ok")  # voice off-switch
 
 LOG_MAX_BYTES = 128 * 1024
 LOG_BACKUP_COUNT = 2
+SPOOL_MAX_BYTES = 64 * 1024  # cap on a single spool read
+SPOOL_WORK_SUFFIX = ".consuming"  # atomic consume: rename first, then read
 
 
 class BeaconError(RuntimeError):
@@ -145,20 +153,36 @@ def flags_label(flags: int) -> str:
 # --- trigger parsing ----------------------------------------------------
 
 
-def parse_trigger_text(text: str) -> tuple[int | None, list[str]]:
+@dataclass(frozen=True)
+class TriggerBatch:
+    """One parsed batch of trigger tokens."""
+
+    flags: int = 0  # OR of every recognized class flag
+    stop: bool = False  # a stop/cancel/clear/ok token was present
+    recognized: bool = False  # at least one class/alias/bits token matched
+    tokens: int = 0  # total non-blank tokens seen (stale-discard logging)
+    unknown: tuple[str, ...] = ()
+
+
+def parse_trigger_text(text: str) -> TriggerBatch:
     """OR together every recognized token; report the unknown ones.
 
-    Accepts class names (fire/injured/lost/trapped), sos/help, heartbeat,
-    "none" (ignored), and raw 4-bit flag strings like "0101". A partially
-    written token is simply reported as unknown - never a crash.
+    Case-insensitive. Accepts class names (fire/injured/lost/trapped),
+    sos/help, heartbeat, stop tokens (stop/cancel/clear/ok), "none"
+    (ignored), and raw 4-bit flag strings like "0101". A partially written
+    or malformed token is simply reported as unknown - never a crash.
     """
     flags = 0
+    stop = False
     recognized = False
     unknown: list[str] = []
-    for token in text.replace(",", " ").lower().split():
+    tokens = text.replace(",", " ").lower().split()
+    for token in tokens:
         if token in NO_OP_CLASSES:
             continue
-        if token in SOS_ALIASES:
+        if token in STOP_TOKENS:
+            stop = True
+        elif token in SOS_ALIASES:
             flags |= SOS_FLAGS
             recognized = True
         elif token in CLASS_FLAGS:
@@ -168,28 +192,40 @@ def parse_trigger_text(text: str) -> tuple[int | None, list[str]]:
             flags |= int(token, 2)
             recognized = True
         else:
-            unknown.append(token)
-    return (flags if recognized else None, unknown)
+            unknown.append(token[:32])  # truncate: log hygiene for junk data
+    return TriggerBatch(flags, stop, recognized, len(tokens), tuple(unknown))
 
 
-def consume_spool(path: str) -> int | None:
-    """Read+delete the trigger spool; return OR-merged flags or None."""
+def consume_spool(path: str) -> TriggerBatch | None:
+    """Atomically consume the trigger spool (rename, then read+delete).
+
+    The rename detaches the batch from writers still appending to the
+    original path; the read is capped so a runaway writer cannot wedge the
+    daemon. Returns None when there is no spool file.
+    """
+    work = path + SPOOL_WORK_SUFFIX
     try:
-        with open(path, "r", encoding="utf-8", errors="replace") as spool:
-            text = spool.read()
+        os.replace(path, work)
     except FileNotFoundError:
         return None
     except OSError as exc:
-        LOG.warning("spool read failed (%s): %s", path, exc)
+        LOG.warning("spool rename failed (%s): %s", path, exc)
         return None
+    text = ""
     try:
-        os.remove(path)
+        with open(work, "r", encoding="utf-8", errors="replace") as spool:
+            text = spool.read(SPOOL_MAX_BYTES)
     except OSError as exc:
-        LOG.warning("spool delete failed (%s): %s", path, exc)
-    flags, unknown = parse_trigger_text(text)
-    if unknown:
-        LOG.warning("spool: skipping unknown trigger tokens %s", unknown)
-    return flags
+        LOG.warning("spool read failed (%s): %s", work, exc)
+    finally:
+        try:
+            os.remove(work)
+        except OSError:
+            pass
+    batch = parse_trigger_text(text)
+    if batch.unknown:
+        LOG.warning("spool: skipping unknown trigger tokens %s", list(batch.unknown))
+    return batch
 
 
 # --- GPIO backends ------------------------------------------------------
@@ -350,12 +386,17 @@ class FrameTransmitter:
 
 
 class Beacon:
-    """Heartbeat scheduler + spool-triggered emergency frames.
+    """Heartbeat scheduler + spool-triggered emergency sequences.
 
     The spool is only read between frames, so a frame that is already going
     out is always finished (never corrupted); the worst-case trigger wait is
-    one frame (~12 s). Triggers that pile up while waiting OR-merge in the
-    spool file and go out as a single emergency frame.
+    one frame (~12 s). Triggers that arrive while transmitting accumulate
+    into a pending set (flags OR-merged, duplicates of the active/pending
+    set debounced) and go out as the NEXT sequence - merge-then-queue, never
+    interleaved. A heartbeat that comes due during an emergency sequence is
+    skipped (the emergency proves aliveness) and the timer resets afterwards.
+    Startup transmits nothing: stale spool is discarded and the first
+    heartbeat fires one full period after launch.
     """
 
     def __init__(
@@ -370,6 +411,8 @@ class Beacon:
         self.monotonic = monotonic
         self.sleep = sleep
         self.frame_history: list[tuple[float, str, str]] = []
+        self.pending_flags = 0  # OR-merged classes waiting for the next sequence
+        self.active_flags: int | None = None  # sequence on air right now
 
     def send_frame(self, flags: int, kind: str) -> None:
         bits = build_frame(flags)
@@ -378,42 +421,111 @@ class Beacon:
         LOG.info("frame out: kind=%s label=%s bits=%s", kind, flags_label(flags), bits)
         self.transmitter.transmit_frame(bits)
 
-    def _send_emergency(self, flags: int, budget: int | None) -> int:
+    def _discard_stale_spool(self) -> None:
+        """The trigger queue never survives across runs."""
+        try:  # a crash may also have left a half-consumed work file behind
+            os.remove(self.config.spool_path + SPOOL_WORK_SUFFIX)
+        except OSError:
+            pass
+        batch = consume_spool(self.config.spool_path)
+        if batch is not None and batch.tokens:
+            LOG.info("discarded %d stale trigger(s) from a previous run", batch.tokens)
+
+    def _poll_triggers(self) -> bool:
+        """Consume the spool into pending state; True if stop was requested."""
+        batch = consume_spool(self.config.spool_path)
+        if batch is None:
+            return False
+        if batch.stop:
+            LOG.info(
+                "stop received: clearing queue (pending=%s active=%s)",
+                flags_label(self.pending_flags) if self.pending_flags else "-",
+                flags_label(self.active_flags) if self.active_flags is not None else "-",
+            )
+            self.pending_flags = 0
+            return True
+        duplicate = batch.flags & (self.pending_flags | (self.active_flags or 0))
+        fresh = batch.flags & ~duplicate
+        if duplicate:
+            LOG.info(
+                "debounced trigger(s) already active/pending: %s",
+                flags_label(duplicate),
+            )
+        if fresh:
+            self.pending_flags |= fresh
+            LOG.info(
+                "queued: %s (pending now %s)",
+                flags_label(fresh),
+                flags_label(self.pending_flags),
+            )
+        return False
+
+    def _run_sequence(self, flags: int, budget: int | None) -> tuple[int, bool]:
+        """Send the emergency sequence; poll for stop between frames only.
+
+        Returns (frames sent, stopped early). The in-flight frame always
+        completes; stop only cancels repeats that have not started.
+        """
+        self.active_flags = flags
         sent = 0
-        for repeat in range(self.config.emergency_repeats):
-            if budget is not None and sent >= budget:
-                break
-            self.send_frame(flags, "emergency")
-            sent += 1
-            if repeat + 1 < self.config.emergency_repeats:
-                self.sleep(self.config.emergency_gap_s)
-        return sent
+        stopped = False
+        try:
+            for repeat in range(self.config.emergency_repeats):
+                if budget is not None and sent >= budget:
+                    break
+                if repeat > 0:
+                    self.sleep(self.config.emergency_gap_s)
+                    if self._poll_triggers():
+                        stopped = True
+                        break
+                self.send_frame(flags, "emergency")
+                sent += 1
+                if repeat + 1 < self.config.emergency_repeats and self._poll_triggers():
+                    stopped = True
+                    break
+        finally:
+            self.active_flags = None
+        if stopped:
+            LOG.info(
+                "emergency sequence aborted after %d of %d repeats",
+                sent,
+                self.config.emergency_repeats,
+            )
+        return sent, stopped
 
     def run(self, max_frames: int | None = None) -> None:
         """Main loop; max_frames bounds the run for tests/bench checks."""
         LOG.info(
-            "beacon up: heartbeat every %gs, spool %s",
+            "beacon up: silent start, first heartbeat in %gs, spool %s",
             self.config.heartbeat_interval_s,
             self.config.spool_path,
         )
-        next_heartbeat = self.monotonic()  # first heartbeat immediately
+        self._discard_stale_spool()
+        interval = self.config.heartbeat_interval_s
+        next_heartbeat = self.monotonic() + interval  # NO transmission at launch
         sent = 0
         try:
             while max_frames is None or sent < max_frames:
-                flags = consume_spool(self.config.spool_path)
+                stop = self._poll_triggers()
                 now = self.monotonic()
-                if flags is not None:
+                if stop:
+                    next_heartbeat = now + interval
+                elif self.pending_flags:
+                    flags = self.pending_flags
+                    self.pending_flags = 0
                     budget = None if max_frames is None else max_frames - sent
-                    sent += self._send_emergency(flags, budget)
-                    next_heartbeat = self.monotonic() + self.config.heartbeat_interval_s
+                    frames, _ = self._run_sequence(flags, budget)
+                    sent += frames
+                    after = self.monotonic()
+                    if next_heartbeat <= after:
+                        LOG.info("heartbeat skipped (emergency sequence was active)")
+                    next_heartbeat = after + interval
                 elif now >= next_heartbeat:
                     self.send_frame(HEARTBEAT_FLAGS, "heartbeat")
                     sent += 1
-                    next_heartbeat = now + self.config.heartbeat_interval_s
+                    next_heartbeat = now + interval
                 else:
-                    self.sleep(
-                        min(self.config.poll_interval_s, next_heartbeat - now)
-                    )
+                    self.sleep(min(self.config.poll_interval_s, next_heartbeat - now))
         finally:
             self.transmitter.driver.all_off()
 
@@ -427,6 +539,10 @@ class SingleInstanceLock:
     def __init__(self, path: str):
         self.path = path
         self._held = False
+
+    @property
+    def held(self) -> bool:
+        return self._held
 
     def acquire(self) -> None:
         for _ in range(2):  # second try after clearing a stale pidfile
@@ -484,6 +600,8 @@ def _raise_exit(signum, _frame):
 
 def _setup_logging(log_path: str) -> None:
     LOG.setLevel(logging.INFO)
+    for handler in list(LOG.handlers):  # idempotent across repeated calls
+        LOG.removeHandler(handler)
     fmt = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
     stream = logging.StreamHandler()
     stream.setFormatter(fmt)
@@ -547,10 +665,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     send_flags: int | None = None
     if args.send:
-        send_flags, unknown = parse_trigger_text(" ".join(args.send))
-        if unknown or send_flags is None:
-            print(f"unknown class(es): {unknown or args.send}", file=sys.stderr)
+        batch = parse_trigger_text(" ".join(args.send))
+        if batch.unknown or batch.stop or not batch.recognized:
+            print(f"unknown class(es): {list(batch.unknown) or args.send}", file=sys.stderr)
             return 2
+        send_flags = batch.flags
 
     _setup_logging(config.log_path)
     signal.signal(signal.SIGINT, _raise_exit)
@@ -582,6 +701,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         except Exception:  # backend never opened - nothing to switch off
             pass
         backend.close()
+        if lock is None or lock.held:
+            # We owned the coil: the trigger queue dies with us. (If the
+            # lock was NOT ours, another beacon is live - leave its spool.)
+            for stale in (config.spool_path, config.spool_path + SPOOL_WORK_SUFFIX):
+                try:
+                    os.remove(stale)
+                except OSError:
+                    pass
         if lock is not None:
             lock.release()
 

@@ -81,6 +81,7 @@ while :; do
             lower=$(printf '%s' "$text" | tr 'A-Z' 'a-z')
             now=$(date +%s)
             alert=""
+            gated=""
             case " $lower " in
             *[!a-z0-9]"$WAKE"[!a-z0-9]*)
                 # wake word in this chunk: the classifier strips everything
@@ -88,6 +89,7 @@ while :; do
                 # next chunk (same behavior as the Linux script).
                 alert=$(printf '%s\n' "$text" | "$CLASSIFIER")
                 armed_until=$((now + LISTEN_WINDOW))
+                gated=1
                 ;;
             *)
                 if [ "$now" -lt "$armed_until" ]; then
@@ -95,9 +97,26 @@ while :; do
                     # chunk as the command, then disarm.
                     alert=$(printf '%s %s\n' "$WAKE" "$text" | "$CLASSIFIER")
                     armed_until=0
+                    gated=1
                 fi
                 ;;
             esac
+
+            # Voice off-switch: a wake-gated "stop" / "cancel" / "I am okay"
+            # ("device stop") cancels the beacon's emergency queue. Wins over
+            # any classifier hit in the same phrase.
+            if [ -n "$gated" ]; then
+                case " $lower " in
+                *[!a-z0-9]stop[!a-z0-9]*|*[!a-z0-9]cancel[!a-z0-9]*|*"i am okay"*|*"i'm okay"*)
+                    printf 'stop\n' >> "$BEACON_SPOOL" \
+                        || echo "(beacon spool write failed: $BEACON_SPOOL)" >&2
+                    echo "--- ================================================== ---"
+                    echo "---  CANCELLED  ->  stop sent to beacon (queue cleared)"
+                    echo "--- ================================================== ---"
+                    alert=""
+                    ;;
+                esac
+            fi
 
             if [ -n "$alert" ]; then
                 echo "!!! ========================================================== !!!"

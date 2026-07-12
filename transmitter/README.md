@@ -12,12 +12,35 @@ Long-running beacon daemon that drives the L298N coil through the QNX
   MSB-first — `bit3=fire  bit2=trapped  bit1=lost  bit0=injured`.
   `0000` = heartbeat, `1111` = SOS ("help" keyword override), combinations
   legal (`0101` = trapped+injured). Full table: `docs/equipment-codes.md`.
-- **Behavior**: heartbeat frame every 120 s. Emergency triggers arrive via
-  the spool file `/tmp/beacon_trigger` (class names or 4-bit flag strings,
-  written by `TTS/live_listen_qnx.sh`). A frame mid-transmission is always
-  finished first (~12 s worst wait), then the emergency frame goes out 3x
-  with 3 s gaps, and the heartbeat schedule resumes. Multiple triggers
-  while waiting OR-merge into one frame.
+- **Behavior**: silent at launch — the daemon transmits NOTHING at startup;
+  the first heartbeat fires one full period (120 s) after start, then every
+  120 s. Emergencies may transmit any time: triggers arrive via the spool
+  file `/tmp/beacon_trigger` (class names or 4-bit flag strings, written by
+  `TTS/live_listen_qnx.sh`). A frame mid-transmission is always finished
+  first (~12 s worst wait), then the pending flags go out 3x with 3 s gaps
+  and the heartbeat timer resets. A stale spool or pidfile from a previous
+  run is cleared at startup — the trigger queue never survives across runs.
+
+### Queueing: merge-then-queue, not FIFO
+
+Triggers that arrive while a frame or sequence is on air are never lost and
+never interleaved: they accumulate into a pending set whose flags OR-merge
+(injured then lost -> one `0011` frame), and transmit as the NEXT sequence
+after the current one completes. A class already on air or already pending
+is debounced (logged, not re-queued). This beats a naive FIFO because the
+receiver learns **both** dangers in one 12 s frame instead of waiting ~45 s
+for two back-to-back sequences — on a channel this slow, latency to the full
+picture is what saves the explorer. A heartbeat that comes due during an
+emergency sequence is skipped (the emergency itself proves aliveness), and
+after any emergency sequence the heartbeat timer resets to now + 120 s.
+
+### Stop command (voice off-switch)
+
+Spool tokens `stop` / `cancel` / `clear` / `ok` (case-insensitive) finish
+the current frame cleanly, abort the remaining repeats, clear the pending
+queue, and resume the heartbeat schedule (timer reset). Saying
+"device stop" (or "device cancel" / "device I am okay") into the mic does
+exactly this via `live_listen.sh`.
 
 ## Wiring (BCM numbering)
 
@@ -55,11 +78,12 @@ python3 transmitter.py --send heartbeat
 python3 transmitter.py --send injured
 python3 transmitter.py --send trapped --send injured   # 0101 combo
 
-# the real thing: daemon (heartbeat every 120 s + spool triggers)
+# the real thing: daemon (silent start; first heartbeat at +120 s)
 python3 transmitter.py
 
 # poke the running daemon
 echo injured >> /tmp/beacon_trigger
+echo stop >> /tmp/beacon_trigger      # cancel: finish frame, clear queue
 
 # no-hardware dry run (works on the Mac too)
 python3 transmitter.py --sim --send sos
