@@ -1,0 +1,23 @@
+# Core deep learning
+torch>=2.0
+torchvision>=0.15
+
+# Data split, metrics, confusion matrix
+scikit-learn>=1.2
+
+# Plotting the confusion matrix
+matplotlib>=3.6
+
+# Arrays and image IO
+numpy>=1.23
+Pillow>=9.0
+
+# Progress bars
+tqdm>=4.64
+
+# ---------------------------------------------------------------------------
+# CPU-only install note:
+#   pip install -r requirements.txt
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+# The second line pulls the smaller CPU wheels (no CUDA).
+# ---------------------------------------------------------------------------
