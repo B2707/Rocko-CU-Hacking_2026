@@ -77,6 +77,41 @@ class RockoLauncherTests(unittest.TestCase):
         self.assertNotEqual(proc.returncode, 0)
         self.assertIn("photo classifier not found", proc.stdout + proc.stderr)
 
+    def test_no_cleartext_password_in_script(self):
+        # FIX B / review-bot block: the sudo password must never be embedded in
+        # the script text. Guard against the old `echo qnxuser | sudo -S ...`.
+        src = ROCKO.read_text()
+        self.assertNotIn("echo qnxuser", src)
+        self.assertNotIn("qnxuser |", src)
+        # the bring-up must read the password from a file, not a literal
+        self.assertIn("PASS_FILE", src)
+        self.assertIn('sudo -S sh -c', src)
+
+    def test_missing_pass_file_degrades_cleanly(self):
+        # FIX B: with the mic node absent and NO readable pass-file, rocko.sh
+        # must skip the auto bring-up, print the exact manual command, and keep
+        # going (it does not abort on the audio path). We stub the transmitter
+        # and listener so startup reaches ensure_audio; the transmitter stub
+        # exits immediately, so the run then tears down with a nonzero rc.
+        tx = os.path.join(self.tmp.name, "tx.py")
+        Path(tx).write_text("import sys\nsys.exit(0)\n")
+        ls = os.path.join(self.tmp.name, "ls.sh")
+        Path(ls).write_text("#!/bin/sh\nexit 0\n")
+        env = self._env(
+            ROCKO_TRANSMITTER=tx,
+            ROCKO_LISTENER=ls,
+            MIC_NODE=os.path.join(self.tmp.name, "no_such_mic"),
+            ROCKO_PASS_FILE=os.path.join(self.tmp.name, "no_such_pass"),
+            ROCKO_AUDIO_WAIT="1",
+        )
+        proc = self._run([], env)
+        combined = proc.stdout + proc.stderr
+        # reached the bring-up and degraded cleanly (no crash, no password use)
+        self.assertIn("no readable pass-file", combined)
+        self.assertIn("sudo sh -c 'slay io-snd", combined)
+        # never emitted a cleartext password into the stream
+        self.assertNotIn("echo qnxuser", combined)
+
     def test_orphaned_transmitter_prints_recovery_and_refuses(self):
         # F15: stale rocko.pid + a LIVE transmitter pidfile -> recovery + nonzero.
         live = subprocess.Popen([SHELL, "-c", "sleep 30"])

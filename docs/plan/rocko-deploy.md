@@ -26,6 +26,27 @@ Deployment happens later, separately — this is the map, not a run.
 | `/data/home/qnxuser/cnn/injury.tflite` | ~16 MB converted EfficientNet-B0 | separate conversion of `CNN/outputs/best_model.pt` |
 | `/data/home/qnxuser/cnn/demo.jpg` | default demo photo | `CNN/test_data/` |
 | `/data/home/qnxuser/whisper.cpp/...` | whisper-cli + `ggml-tiny.en.bin` | already on the Pi |
+| `/data/home/qnxuser/.rocko_pass` | sudo password for the Decision-2 audio bring-up | created at deploy time (below) — **never committed** |
+
+### Sudo pass-file for audio bring-up
+
+`rocko.sh` brings `io-snd` up automatically (Decision 2) when the mic node is
+missing. That needs `sudo`, so it reads the password from a Pi-local file
+**outside the repo** (`$HOME/.rocko_pass`, overridable via `ROCKO_PASS_FILE`)
+and streams it into `sudo -S`; the password never appears in the script text or
+the process table. `qnxuser` is the OS default password, so the deploy step
+just writes it into that file:
+
+```sh
+printf 'qnxuser\n' > /data/home/qnxuser/.rocko_pass
+chmod 600 /data/home/qnxuser/.rocko_pass
+```
+
+If this file is missing, unreadable, or empty, `rocko.sh` skips the automatic
+bring-up and prints the exact manual command instead
+(`sudo sh -c 'slay io-snd; io-snd -c /etc/system/config/sound/io_snd.conf'`),
+then continues — the beacon still runs, and the listener reports/retries the
+mic. The pass-file is only read for this one sanctioned bring-up.
 
 ## One-time Pi setup
 
@@ -35,6 +56,10 @@ apk add python3-tflite-runtime      # plus numpy + Pillow available to python3
 
 # build the audio classifier natively
 cd /data/home/qnxuser/audio && make classifier
+
+# sudo pass-file for the Decision-2 audio bring-up (never committed)
+printf 'qnxuser\n' > /data/home/qnxuser/.rocko_pass
+chmod 600 /data/home/qnxuser/.rocko_pass
 ```
 
 ## Build steps summary
@@ -54,4 +79,5 @@ sh /data/home/qnxuser/rocko.sh photo    # injury-photo demo
 
 Path overrides (if the tree differs) are env vars read by `rocko.sh`:
 `ROCKO_HOME`, `AUDIO_DIR`, `CNN_DIR`, `ROCKO_LISTENER`, `ROCKO_TRANSMITTER`,
-`ROCKO_PHOTO`, `ROCKO_PHOTO_MODEL`, `ROCKO_PHOTO_LABELS`, `ROCKO_PHOTO_IMAGE`.
+`ROCKO_PHOTO`, `ROCKO_PHOTO_MODEL`, `ROCKO_PHOTO_LABELS`, `ROCKO_PHOTO_IMAGE`,
+`ROCKO_PASS_FILE`.
