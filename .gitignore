@@ -16,3 +16,8 @@ data/context/fm/merge.lock/
 
 __pycache__/
 *.py[cod]
+
+# compiled classifier binary (build artifact)
+TTS/classifier
+TTS/classifier_qnx
+TTS/interactive
