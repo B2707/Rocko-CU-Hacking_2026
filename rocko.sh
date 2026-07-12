@@ -42,6 +42,7 @@ SND_CONF=${SND_CONF:-/etc/system/config/sound/io_snd.conf}
 SPOOL=${BEACON_SPOOL:-/tmp/beacon_trigger}
 LOG=${ROCKO_LOG:-/tmp/rocko.log}
 ROCKO_PID=${ROCKO_PID:-/tmp/rocko.pid}
+TX_PIDFILE=${TX_PIDFILE:-/tmp/beacon.pid}      # transmitter.py's default pidfile
 LOG_MAX_BYTES=${ROCKO_LOG_MAX_BYTES:-262144}   # 256 KiB before rotate
 AUDIO_WAIT=${ROCKO_AUDIO_WAIT:-10}             # seconds to wait for mic node
 
@@ -63,6 +64,9 @@ numberer() {
         rk_out=$(printf '[#%04d] %s %s' "$n" "$rk_ts" "$rk_line")
         printf '%s\n' "$rk_out"
         printf '%s\n' "$rk_out" >> "$LOG" 2>/dev/null || true
+        # F14: cap log growth DURING a long run, not only at startup - a beacon
+        # runs for hours. Check size every 200 lines and rotate in place.
+        [ $((n % 200)) -eq 0 ] && rotate_log
     done
 }
 
@@ -88,8 +92,14 @@ ensure_audio() {
     fi
     emit "audio: mic node $MIC_NODE absent - bringing io-snd up (decision 2)"
     # The one sanctioned automatic restart: slay io-snd, relaunch from config.
-    echo qnxuser | sudo -S sh -c "slay io-snd; io-snd -c $SND_CONF" >&3 2>&3 || \
+    # F11: io-snd is a long-lived daemon - it must NOT inherit fd 3 (the event
+    # FIFO) or it would hold the write end open and Ctrl+C would hang forever
+    # waiting for the numberer to drain. Close fd 3 for this command and discard
+    # its own chatter; the mic-node check below reports the real outcome.
+    if ! echo qnxuser | sudo -S sh -c "slay io-snd; io-snd -c $SND_CONF" \
+            >/dev/null 2>&1 3>&-; then
         emit "ERROR audio bring-up command failed"
+    fi
     i=0
     while [ ! -e "$MIC_NODE" ] && [ "$i" -lt "$AUDIO_WAIT" ]; do
         sleep 1
@@ -112,10 +122,27 @@ acquire_lock() {
         echo "rocko already running (pid $oldpid) - refusing double launch" >&2
         return 1
     fi
+    # rocko.pid is stale (its owner is gone - likely a hard SIGKILL that skipped
+    # cleanup). F15: before taking over, check for an ORPHANED transmitter still
+    # holding the coil. A new run would collide with it, so print the exact
+    # recovery commands and refuse cleanly instead of leaving two half-states.
+    txpid=$(cat "$TX_PIDFILE" 2>/dev/null | tr -d ' ')
+    if [ -n "$txpid" ] && kill -0 "$txpid" 2>/dev/null; then
+        echo "rocko.pid is stale but a transmitter (pid $txpid) is still running." >&2
+        echo "An earlier run was killed hard, leaving the coil daemon orphaned." >&2
+        echo "Recover with:" >&2
+        echo "    kill -TERM $txpid" >&2
+        echo "    rm -f $ROCKO_PID $TX_PIDFILE" >&2
+        echo "then re-run rocko.sh." >&2
+        return 1
+    fi
     printf '%s\n' "$$" > "$ROCKO_PID" 2>/dev/null   # stale pidfile, take over
 }
 
 cleanup() {
+    # F13: preserve a nonzero exit for startup failures. Trap-driven shutdown
+    # (Ctrl+C) calls cleanup with no arg -> rc 0; error paths call `cleanup 1`.
+    rk_rc=${1:-0}
     [ -n "$CLEANING" ] && return
     CLEANING=1
     emit "shutdown: stopping listener + transmitter (coil forced off)" 2>/dev/null || true
@@ -128,7 +155,7 @@ cleanup() {
     [ -n "$NUM_PID" ] && wait "$NUM_PID" 2>/dev/null
     rm -f "$FIFO"
     rm -f "$ROCKO_PID"
-    exit 0
+    exit "$rk_rc"
 }
 
 cmd_run() {
@@ -151,11 +178,11 @@ cmd_run() {
     # sanity: required programs present (E8: clear error, clean exit)
     if [ ! -f "$TRANSMITTER" ]; then
         emit "ERROR transmitter not found: $TRANSMITTER"
-        cleanup
+        cleanup 1
     fi
     if [ ! -f "$LISTENER" ]; then
         emit "ERROR listener not found: $LISTENER"
-        cleanup
+        cleanup 1
     fi
 
     ensure_audio
@@ -170,7 +197,7 @@ cmd_run() {
     if ! kill -0 "$TX_PID" 2>/dev/null; then
         emit "ERROR transmitter exited at startup (already running? GPIO missing?)"
         TX_PID=""
-        cleanup
+        cleanup 1
     fi
 
     # live listener: numbered mode so it emits clean single-line events.
@@ -184,7 +211,7 @@ cmd_run() {
         sleep 1
     done
     emit "a component exited - shutting down"
-    cleanup
+    cleanup 1
 }
 
 cmd_photo() {
@@ -195,11 +222,19 @@ cmd_photo() {
             | numberer
         exit 1
     fi
-    # single producer -> pipe straight through the numberer.
+    # F13: a pipeline's exit status is the numberer's (0), which would mask a
+    # classifier failure. Stash the classifier's real rc in a temp file inside
+    # the producer subshell, then propagate it as our own exit code.
+    rcfile=$(mktemp 2>/dev/null || echo "/tmp/rocko_photo_rc.$$")
     {
         "$PY" "$PHOTO_SCRIPT" "$img" \
             --model "$PHOTO_MODEL" --labels "$PHOTO_LABELS" 2>&1
+        echo $? > "$rcfile"
     } | numberer
+    rc=$(cat "$rcfile" 2>/dev/null)
+    rm -f "$rcfile"
+    [ -z "$rc" ] && rc=1
+    exit "$rc"
 }
 
 usage() {
@@ -218,7 +253,10 @@ EOF
 
 case "${1:-run}" in
     run)
-        shift 2>/dev/null || true
+        # F2: a bare `shift` with no positional args aborts under ksh/dash (a
+        # special-builtin error bypasses `|| true`). Guard it so `rocko.sh` with
+        # no args still reaches the normal startup path.
+        [ $# -gt 0 ] && shift
         cmd_run
         ;;
     photo)
