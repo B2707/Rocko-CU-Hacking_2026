@@ -95,10 +95,11 @@ class WakeGateTests(unittest.TestCase):
 
     def test_whisper_variants_and_punctuation(self):
         # case, punctuation, comma splits, and rocko homophones all still open it
+        # (F6: "rock" was dropped as too broad; "rockoh" is a retained variant)
         for line in (
             "HEY, ROCCO! HELP, the kitchen is on fire",
             "hey roko help the kitchen is on fire",
-            "Hey Rock, help - the kitchen is on fire",
+            "Hey Rockoh, help - the kitchen is on fire",
         ):
             with self.subTest(line=line):
                 self.assertEqual(self.first_token(line), "fire")
@@ -111,6 +112,44 @@ class WakeGateTests(unittest.TestCase):
         # "help" alone must NOT open the gate — it is part of the phrase, not the
         # trigger (proves the phrase is required, not just the word).
         self.assertEqual(self.classify("can you help me please"), "")
+
+    # --- F1: emergency content always outranks a cancel word ------------
+    def test_emergency_content_outranks_cancel_word(self):
+        # a cancel word riding along with real emergency content must NOT cancel
+        self.assertEqual(
+            self.first_token("hey rocko help i am trapped okay"), "trapped"
+        )
+        self.assertEqual(
+            self.first_token(
+                "hey rocko help everything is clear now i am trapped under a rock"
+            ),
+            "trapped",
+        )
+        # "stuck ok" - the classifier's class wins, and it is NOT stop
+        self.assertNotEqual(
+            self.first_token("hey rocko help i am stuck ok"), "stop"
+        )
+
+    def test_cancel_wins_only_without_emergency(self):
+        # a bare cancel (no emergency word) still cancels
+        self.assertEqual(self.first_token("hey rocko help i am okay"), "stop")
+        self.assertEqual(self.first_token("hey rocko help stop"), "stop")
+
+    # --- F6: tighter variants + stutter tolerance -----------------------
+    def test_broad_rocko_variants_no_longer_fire(self):
+        # casual speech that used to false-fire ("rocky"/"helps") must stay silent
+        self.assertEqual(
+            self.classify("hey rocky helps me when i am lost"), ""
+        )
+
+    def test_consecutive_duplicate_wake_tokens_fire(self):
+        # a stutter of an accepted token still opens the gate
+        self.assertEqual(
+            self.first_token("hey rocko rocko help i am trapped"), "trapped"
+        )
+        self.assertEqual(
+            self.first_token("hey hey rocko help i am lost"), "lost"
+        )
 
 
 if __name__ == "__main__":
