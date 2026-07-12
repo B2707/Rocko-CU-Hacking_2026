@@ -24,7 +24,7 @@
 | 0100 | Trapped | classifier class `trapped` |
 | 0010 | Lost | classifier class `lost` |
 | 0001 | Injured | classifier class `injured` |
-| 1111 | SOS / help | wake phrase said alone, or `[help]` keyword override |
+| 1111 | SOS / help | wake phrase said alone, or a `[help]` keyword hit with no specific class — a specific classified class (fire/trapped/lost/injured) always wins when one accompanies the help word |
 | any other | Combination (flags OR together) | multiple triggers, e.g. 0101 = trapped+injured |
 
 Classifier class `none` never triggers a transmission.

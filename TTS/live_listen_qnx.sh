@@ -31,10 +31,13 @@ MIC_NODE=/dev/snd/pcmC0D0c       # capture device node (existence = mic present)
 CHUNK=5                          # seconds per recording chunk
 WAKE_PHRASE="hey rocko help"     # spoken wake phrase (matched in wake_word.h)
 COOLDOWN=8                       # seconds to suppress repeat fires (chunk overlap)
-BEACON_SPOOL=/tmp/beacon_trigger # consumed by transmitter/transmitter.py (coil)
+# F10: honor a BEACON_SPOOL override from the environment so rocko.sh's --spool
+# path reaches BOTH the listener (writer) and the transmitter (reader).
+BEACON_SPOOL="${BEACON_SPOOL:-/tmp/beacon_trigger}"
 
 WAV_A=/tmp/live_listen_a.$$.wav
 WAV_B=/tmp/live_listen_b.$$.wav
+WHISPER_OUT=/tmp/live_listen_out.$$.txt
 rec_pid=""
 
 # --- event output -------------------------------------------------------
@@ -74,7 +77,7 @@ spool_write() {
 cleanup() {
     trap - INT TERM
     [ -n "$rec_pid" ] && kill "$rec_pid" 2>/dev/null
-    rm -f "$WAV_A" "$WAV_B"
+    rm -f "$WAV_A" "$WAV_B" "$WHISPER_OUT"
     emit "listener stopped."
     exit 0
 }
@@ -98,7 +101,9 @@ rec_pid=$!
 cur=$WAV_A
 nxt=$WAV_B
 cooldown_until=0
-mic_warned=0
+mic_warned=0        # mic node vanished (suppress repeat ERRORs)
+read_warned=0       # mic present but read failing (suppress repeat ERRORs, F14)
+whisper_warned=0    # whisper pipeline failing (suppress repeat ERRORs, F8)
 
 while :; do
     wait "$rec_pid"
@@ -118,21 +123,40 @@ while :; do
                 mic_warned=1
             fi
         else
-            emit "ERROR mic read failed (device present) - retrying"
+            # F14: device present but the read failed - suppress repeats so a
+            # persistent glitch cannot spam one ERROR per second; report once.
+            if [ "$read_warned" -eq 0 ]; then
+                emit "ERROR mic read failed (device present) - retrying, further repeats suppressed"
+                read_warned=1
+            fi
         fi
-        sleep 1
+        sleep 2
         t=$cur; cur=$nxt; nxt=$t
         continue
     fi
     [ "$mic_warned" -eq 1 ] && { emit "mic recovered: $MIC_NODE present"; mic_warned=0; }
+    [ "$read_warned" -eq 1 ] && { emit "mic read recovered"; read_warned=0; }
 
-    # transcribe the finished chunk; collapse to one trimmed line
-    text=$("$WHISPER" -m "$MODEL" -f "$cur" -nt -np 2>/dev/null \
-           | tr '\n' ' ' | tr -s ' ' | sed 's/^ *//; s/ *$//')
+    # Transcribe the finished chunk to a file so we can read whisper's OWN exit
+    # status (a pipeline into tr/sed would mask it). F8: a whisper crash must
+    # surface as a numbered ERROR - a deaf device - distinct from the silence of
+    # an empty transcript, which is normal.
+    "$WHISPER" -m "$MODEL" -f "$cur" -nt -np >"$WHISPER_OUT" 2>/dev/null
+    wrc=$?
+    if [ "$wrc" -ne 0 ]; then
+        if [ "$whisper_warned" -eq 0 ]; then
+            emit "ERROR whisper transcription failed (exit $wrc) - device deaf this chunk, retrying; repeats suppressed"
+            whisper_warned=1
+        fi
+        t=$cur; cur=$nxt; nxt=$t
+        continue
+    fi
+    [ "$whisper_warned" -eq 1 ] && { emit "whisper recovered"; whisper_warned=0; }
+    text=$(tr '\n' ' ' < "$WHISPER_OUT" | tr -s ' ' | sed 's/^ *//; s/ *$//')
 
     case "$text" in
     ''|'['*']'|'('*')')
-        : ;;   # E8: blank / whisper-crash / pure noise annotation -> skip quietly
+        : ;;   # E8: blank / pure noise annotation -> skip quietly (whisper was OK)
     *)
         caption "$text"
 
@@ -146,8 +170,11 @@ while :; do
         fi
         [ -z "$line" ] && { t=$cur; cur=$nxt; nxt=$t; continue; }  # gate closed
 
+        # F5: spool the classifier's SPECIFIC class (its first token). The
+        # [help] marker rides WITH a specific class (Decision 1: words follow ->
+        # specific class wins), so it must NOT be flattened to sos. "sos" is
+        # written only when the class itself IS sos (the wake phrase said alone).
         cls=${line%% *}
-        case "$line" in *"[help]"*) cls=sos ;; esac
 
         now=$(date +%s)
         if [ "$now" -lt "$cooldown_until" ]; then
