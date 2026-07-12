@@ -56,14 +56,13 @@ class ManchesterTests(unittest.TestCase):
 
 class TriggerParsingTests(unittest.TestCase):
     def test_frame_bits_per_class(self):
+        # F19: only the tokens the listener actually writes are accepted.
         cases = {
-            "heartbeat": PRE + "0000",
             "fire": PRE + "1000",
             "trapped": PRE + "0100",
             "lost": PRE + "0010",
             "injured": PRE + "0001",
             "sos": PRE + "1111",
-            "help": PRE + "1111",
         }
         for name, bits in cases.items():
             batch = transmitter.parse_trigger_text(name)
@@ -76,10 +75,15 @@ class TriggerParsingTests(unittest.TestCase):
         batch = transmitter.parse_trigger_text("trapped\ninjured\n")
         self.assertEqual(transmitter.build_frame(batch.flags), PRE + "0101")
 
-    def test_raw_flag_bits_accepted(self):
-        batch = transmitter.parse_trigger_text("0101")
-        self.assertEqual(batch.unknown, ())
-        self.assertEqual(transmitter.build_frame(batch.flags), PRE + "0101")
+    def test_dead_grammar_tokens_rejected(self):
+        # F19: raw 4-bit strings, "heartbeat", and the "help" alias are dead
+        # grammar - no writer produces them, so they must be unknown, not honored.
+        for token in ("0101", "heartbeat", "help"):
+            with self.subTest(token=token):
+                batch = transmitter.parse_trigger_text(token)
+                self.assertFalse(batch.recognized)
+                self.assertEqual(batch.flags, 0)
+                self.assertEqual(batch.unknown, (token,))
 
     def test_none_and_unknown_tokens_never_crash(self):
         batch = transmitter.parse_trigger_text("none")
@@ -98,9 +102,19 @@ class TriggerParsingTests(unittest.TestCase):
                 batch = transmitter.parse_trigger_text(token)
                 self.assertTrue(batch.stop)
                 self.assertFalse(batch.recognized)
-        batch = transmitter.parse_trigger_text("injured STOP")
-        self.assertTrue(batch.stop)
-        self.assertEqual(batch.flags, transmitter.FLAG_INJURED)
+
+    def test_stop_ordering_within_batch(self):
+        # F4: order matters. A class BEFORE a stop is cleared by it; a class
+        # AFTER a stop survives - the batch's net intent, never a lost trigger.
+        before = transmitter.parse_trigger_text("injured stop")
+        self.assertTrue(before.stop)
+        self.assertEqual(before.flags, 0)  # injured cleared by the following stop
+        after = transmitter.parse_trigger_text("stop fire")
+        self.assertTrue(after.stop)
+        self.assertEqual(after.flags, transmitter.FLAG_FIRE)  # fire survives
+        combo = transmitter.parse_trigger_text("fire stop lost")
+        self.assertTrue(combo.stop)
+        self.assertEqual(combo.flags, transmitter.FLAG_LOST)  # only post-stop survives
 
     def test_flags_out_of_range_rejected(self):
         with self.assertRaises(ValueError):
@@ -137,6 +151,31 @@ class SpoolTests(unittest.TestCase):
             fh.write("fire\n" + "z" * (transmitter.SPOOL_MAX_BYTES + 100))
         batch = transmitter.consume_spool(self.spool)
         self.assertEqual(batch.flags, transmitter.FLAG_FIRE)
+
+    def test_settle_delay_pauses_after_rename(self):
+        # F16: a positive settle_delay sleeps once (after the rename) so a
+        # racing writer's short append lands before we read+delete the batch.
+        with open(self.spool, "w", encoding="ascii") as fh:
+            fh.write("fire\n")
+        slept = []
+        real_sleep = transmitter.time.sleep
+        transmitter.time.sleep = lambda s: slept.append(s)
+        try:
+            batch = transmitter.consume_spool(self.spool, settle_delay=0.1)
+        finally:
+            transmitter.time.sleep = real_sleep
+        self.assertEqual(batch.flags, transmitter.FLAG_FIRE)
+        self.assertIn(0.1, slept)  # the settle pause happened
+        # default (0) settle must not sleep at all
+        slept.clear()
+        with open(self.spool, "w", encoding="ascii") as fh:
+            fh.write("lost\n")
+        transmitter.time.sleep = lambda s: slept.append(s)
+        try:
+            transmitter.consume_spool(self.spool)
+        finally:
+            transmitter.time.sleep = real_sleep
+        self.assertEqual(slept, [])
 
 
 class TimingTests(unittest.TestCase):
@@ -205,9 +244,11 @@ class BeaconLoopTests(unittest.TestCase):
 
         return hook
 
-    def make_beacon(self, sleep_hook=None):
+    def make_beacon(self, sleep_hook=None, interval=None):
         config = transmitter.Config(
-            spool_path=self.spool, heartbeat_interval_s=self.INTERVAL
+            spool_path=self.spool,
+            heartbeat_interval_s=interval or self.INTERVAL,
+            spool_settle_s=0.0,  # tests must not incur the real settle pause (F16)
         )
         clock = FakeClock()
 
@@ -363,6 +404,110 @@ class BeaconLoopTests(unittest.TestCase):
             transmitter._raise_exit(signal_module.SIGTERM, None)
         self.assertEqual(ctx.exception.code, 128 + signal_module.SIGTERM)
 
+    def test_stop_does_not_reset_heartbeat_timer(self):
+        # F3: a stop while idle must NOT push the heartbeat schedule out. With
+        # interval 5 s and a stop at 4.6 s, the first heartbeat still fires at
+        # 5.0 s (not 9.6 s) - silence-is-alarm is never extended by a cancel.
+        hook = self.spool_writer([(4.6, "stop\n")])
+        _, _, beacon = self.make_beacon(sleep_hook=hook, interval=5.0)
+        beacon.run(max_frames=1)
+        self.assertEqual(self.kinds(beacon), ["heartbeat"])
+        self.assertEqual(self.starts(beacon), [5.0])
+
+    def test_stop_then_fire_in_one_batch_transmits_fire(self):
+        # F4: "stop\nfire\n" arrives together - the stop clears the (empty) prior
+        # queue, the fire written after it survives and transmits.
+        hook = self.spool_writer([(1.0, "stop\nfire\n")])
+        _, _, beacon = self.make_beacon(sleep_hook=hook)
+        beacon.run(max_frames=3)
+        self.assertEqual(self.kinds(beacon), ["emergency"] * 3)
+        self.assertEqual(
+            {b for _, b, _ in beacon.frame_history}, {PRE + "1000"}  # fire
+        )
+
+    def test_fire_then_stop_in_one_batch_transmits_nothing(self):
+        # F4: "fire\nstop\n" - the stop cancels the fire queued before it; only
+        # the scheduled heartbeat goes out.
+        hook = self.spool_writer([(1.0, "fire\nstop\n")])
+        _, _, beacon = self.make_beacon(sleep_hook=hook)
+        beacon.run(max_frames=1)
+        self.assertEqual(self.kinds(beacon), ["heartbeat"])
+
+    def test_frame_history_is_bounded(self):
+        # F18: a long run keeps only the most recent MAX_FRAME_HISTORY frames.
+        _, _, beacon = self.make_beacon(interval=0.5)
+        beacon.run(max_frames=transmitter.MAX_FRAME_HISTORY + 8)
+        self.assertEqual(len(beacon.frame_history), transmitter.MAX_FRAME_HISTORY)
+
+    def test_daemon_survives_gpio_error_and_next_heartbeat_transmits(self):
+        # F9: a transient GPIO write error aborts one frame but must NEVER kill
+        # the daemon loop; once the coil recovers, the next heartbeat transmits.
+        class FlakyBackend(transmitter.SimBackend):
+            def __init__(self, fail_writes, **kw):
+                super().__init__(**kw)
+                self._fail = fail_writes
+
+            def write_pin(self, pin, value):
+                if self._fail > 0:
+                    self._fail -= 1
+                    raise transmitter.BeaconError("simulated GPIO hiccup")
+                super().write_pin(pin, value)
+
+        config = transmitter.Config(
+            spool_path=self.spool,
+            heartbeat_interval_s=self.INTERVAL,
+            spool_settle_s=0.0,
+        )
+        clock = FakeClock()
+        backend = FlakyBackend(1, monotonic=clock.monotonic)  # only 1st write fails
+        driver = transmitter.CoilDriver(backend, config)
+        tx = transmitter.FrameTransmitter(
+            driver, config, monotonic=clock.monotonic, sleep=clock.sleep
+        )
+        beacon = transmitter.Beacon(
+            tx, config, monotonic=clock.monotonic, sleep=clock.sleep
+        )
+        with self.assertLogs("beacon", level="INFO") as logs:
+            beacon.run(max_frames=2)  # frame 1 aborts, frame 2 transmits
+        out = "\n".join(logs.output)
+        self.assertIn("tx ABORTED (GPIO)", out)
+        self.assertEqual(self.kinds(beacon), ["heartbeat", "heartbeat"])
+        # the second heartbeat actually drove the coil (ENB high after t=INTERVAL)
+        self.assertTrue(
+            any(
+                pin == config.enb_gpio and v == 1 and t >= self.INTERVAL
+                for t, pin, v in backend.events
+            )
+        )
+        for pin in (config.in3_gpio, config.in4_gpio, config.enb_gpio):
+            self.assertEqual(backend.last_value(pin), 0)  # coil safe at the end
+
+
+class GpioBackendTests(unittest.TestCase):
+    """F9: the QNX GPIO backend retries one transient write before failing."""
+
+    def test_write_pin_retries_once_then_succeeds(self):
+        calls = {"n": 0}
+
+        class Flaky(transmitter.QnxGpioBackend):
+            def _command(self, pin, command):
+                calls["n"] += 1
+                if calls["n"] == 1:
+                    raise OSError("resmgr momentarily busy")
+
+        backend = Flaky("/dev/gpio", (22,), sleep=lambda _s: None)
+        backend.write_pin(22, 1)  # must NOT raise: the single retry recovers
+        self.assertEqual(calls["n"], 2)
+
+    def test_write_pin_raises_beacon_error_after_persistent_failure(self):
+        class Dead(transmitter.QnxGpioBackend):
+            def _command(self, pin, command):
+                raise OSError("gpio node gone")
+
+        backend = Dead("/dev/gpio", (22,), sleep=lambda _s: None)
+        with self.assertRaises(transmitter.BeaconError):
+            backend.write_pin(22, 1)
+
 
 class LockAndCliTests(unittest.TestCase):
     def setUp(self):
@@ -427,6 +572,52 @@ class LockAndCliTests(unittest.TestCase):
         )
         self.assertEqual(rc, 0)
         self.assertFalse(os.path.exists(spool))  # queue never survives a run
+
+    def test_non_sim_rejects_off_contract_knobs(self):
+        # F7: contract-changing knobs are refused (exit 2) on real hardware, and
+        # no GPIO is touched. The same knobs ARE legal under --sim.
+        for argv in (
+            ["--bit-seconds", "0.5"],
+            ["--carrier", "16"],
+            ["--heartbeat-interval", "10"],
+            ["--gpio-dev", "/dev/foo"],
+        ):
+            with self.subTest(argv=argv):
+                self.assertEqual(transmitter.main(argv), 2)
+        log = os.path.join(self.tmp.name, "beacon.log")
+        rc = transmitter.main(
+            ["--sim", "--send", "injured", "--bit-seconds", "0.125",
+             "--carrier", "16", "--log-file", log]
+        )
+        self.assertEqual(rc, 0)
+
+    def test_sim_uses_suffixed_spool_and_pidfile(self):
+        # F12: a --sim run defaults to sim-suffixed spool/pidfile so it can never
+        # remove the live daemon's real files; explicit overrides still win.
+        cfg = transmitter._config_from_args(transmitter.parse_args(["--sim"]))
+        self.assertEqual(cfg.spool_path, "/tmp/beacon_trigger.sim")
+        self.assertEqual(cfg.pidfile_path, "/tmp/beacon.pid.sim")
+        cfg2 = transmitter._config_from_args(
+            transmitter.parse_args(["--sim", "--spool", "/tmp/custom_trigger"])
+        )
+        self.assertEqual(cfg2.spool_path, "/tmp/custom_trigger")
+
+    def test_unexpected_cleanup_error_is_logged_not_swallowed(self):
+        # F17: an unexpected error in the coil-off cleanup path must be logged,
+        # never silently swallowed.
+        class Boom(transmitter.SimBackend):
+            def write_pin(self, pin, value):
+                raise ValueError("boom")
+
+        orig = transmitter.SimBackend
+        transmitter.SimBackend = Boom
+        log = os.path.join(self.tmp.name, "beacon.log")
+        try:
+            with self.assertRaises(ValueError):
+                transmitter.main(["--sim", "--send", "injured", "--log-file", log])
+        finally:
+            transmitter.SimBackend = orig
+        self.assertIn("coil-off cleanup", Path(log).read_text())
 
 
 class LabelAndLogFormatTests(unittest.TestCase):

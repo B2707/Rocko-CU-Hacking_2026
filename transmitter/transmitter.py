@@ -21,8 +21,8 @@ Frame (12 bits, ~12 s)
 Behavior
     Long-running beacon. Transmits NOTHING at launch: the first heartbeat
     fires one full period (120 s) after start; emergencies may transmit any
-    time. Emergency triggers are read from a spool file (class names or
-    4-bit flag strings); a frame that is mid-transmission is always finished
+    time. Emergency triggers are read from a spool file (class names the
+    listener writes); a frame that is mid-transmission is always finished
     first, then the pending flags (OR-merged, duplicates debounced) go out
     3x with 3 s gaps and the heartbeat schedule resets. Spool tokens
     stop/cancel/clear/ok finish the current frame, abort remaining repeats,
@@ -41,6 +41,7 @@ import os
 import signal
 import sys
 import time
+from collections import deque
 from dataclasses import dataclass, replace
 from typing import Callable, Sequence
 
@@ -57,14 +58,17 @@ FLAG_INJURED = 0b0001
 HEARTBEAT_FLAGS = 0b0000
 SOS_FLAGS = 0b1111
 
+# F19: accept ONLY the tokens the listener actually writes to the spool. The
+# single-bit emergency classes, plus "sos" and the stop synonyms. No raw 4-bit
+# strings, no "heartbeat", no "help" alias - no writer produces those, and dead
+# grammar in the transmit path is a defect on a cannot-fail device.
 CLASS_FLAGS = {
     "fire": FLAG_FIRE,
     "trapped": FLAG_TRAPPED,
     "lost": FLAG_LOST,
     "injured": FLAG_INJURED,
-    "heartbeat": HEARTBEAT_FLAGS,
 }
-SOS_ALIASES = ("sos", "help")
+SOS_ALIASES = ("sos",)
 NO_OP_CLASSES = ("none",)  # classifier's "none" never triggers a transmission
 STOP_TOKENS = ("stop", "cancel", "clear", "ok")  # voice off-switch
 
@@ -72,6 +76,7 @@ LOG_MAX_BYTES = 128 * 1024
 LOG_BACKUP_COUNT = 2
 SPOOL_MAX_BYTES = 64 * 1024  # cap on a single spool read
 SPOOL_WORK_SUFFIX = ".consuming"  # atomic consume: rename first, then read
+MAX_FRAME_HISTORY = 64  # F18: bound in-memory frame log (recent frames only)
 
 
 class BeaconError(RuntimeError):
@@ -91,6 +96,7 @@ class Config:
     emergency_repeats: int = 3
     emergency_gap_s: float = 3.0
     poll_interval_s: float = 0.5  # spool check cadence while idle
+    spool_settle_s: float = 0.1  # F16: pause after rename so a racing writer finishes
     spool_path: str = "/tmp/beacon_trigger"
     pidfile_path: str = "/tmp/beacon.pid"
     log_path: str = "/tmp/beacon.log"
@@ -107,6 +113,8 @@ class Config:
             raise ValueError("carrier_hz and bit_seconds must be positive")
         if self.heartbeat_interval_s <= 0 or self.poll_interval_s <= 0:
             raise ValueError("heartbeat and poll intervals must be positive")
+        if self.spool_settle_s < 0:
+            raise ValueError("spool_settle_s must not be negative")
         if self.emergency_repeats < 1 or self.emergency_gap_s < 0:
             raise ValueError("emergency repeats/gap out of range")
         cycles_per_half = self.carrier_hz * self.half_symbol_seconds
@@ -180,12 +188,17 @@ class TriggerBatch:
 
 
 def parse_trigger_text(text: str) -> TriggerBatch:
-    """OR together every recognized token; report the unknown ones.
+    """Fold trigger tokens IN ORDER; report the unknown ones.
 
-    Case-insensitive. Accepts class names (fire/injured/lost/trapped),
-    sos/help, heartbeat, stop tokens (stop/cancel/clear/ok), "none"
-    (ignored), and raw 4-bit flag strings like "0101". A partially written
-    or malformed token is simply reported as unknown - never a crash.
+    Case-insensitive. Accepts class names (fire/injured/lost/trapped), "sos",
+    the stop synonyms (stop/cancel/clear/ok), and "none" (ignored). A partially
+    written or malformed token is simply reported as unknown - never a crash.
+
+    F4: tokens are processed left-to-right (the spool's write order IS the
+    temporal order). A stop token clears only the flags queued BEFORE it in this
+    batch; class tokens written AFTER a stop survive. So "stop fire" yields
+    flags=fire (with stop set), while "fire stop" yields flags=0 - the batch's
+    net intent, never a lost trigger.
     """
     flags = 0
     stop = False
@@ -197,26 +210,30 @@ def parse_trigger_text(text: str) -> TriggerBatch:
             continue
         if token in STOP_TOKENS:
             stop = True
+            flags = 0  # F4: a stop clears only what was queued before it
         elif token in SOS_ALIASES:
             flags |= SOS_FLAGS
             recognized = True
         elif token in CLASS_FLAGS:
             flags |= CLASS_FLAGS[token]
             recognized = True
-        elif len(token) == FLAG_FIELD_WIDTH and set(token) <= {"0", "1"}:
-            flags |= int(token, 2)
-            recognized = True
         else:
             unknown.append(token[:32])  # truncate: log hygiene for junk data
     return TriggerBatch(flags, stop, recognized, len(tokens), tuple(unknown))
 
 
-def consume_spool(path: str) -> TriggerBatch | None:
+def consume_spool(path: str, settle_delay: float = 0.0) -> TriggerBatch | None:
     """Atomically consume the trigger spool (rename, then read+delete).
 
     The rename detaches the batch from writers still appending to the
     original path; the read is capped so a runaway writer cannot wedge the
     daemon. Returns None when there is no spool file.
+
+    F16: `settle_delay` (>0) inserts a short pause AFTER the rename and before
+    the read. It mitigates the writer-open-before-rename race: a listener that
+    opened the spool by name a hair before our os.replace still holds an fd to
+    the now-renamed inode and may be mid-append; the pause lets that short
+    write finish so we don't read+delete a half-written batch.
     """
     work = path + SPOOL_WORK_SUFFIX
     try:
@@ -226,6 +243,8 @@ def consume_spool(path: str) -> TriggerBatch | None:
     except OSError as exc:
         LOG.warning("spool rename failed (%s): %s", path, exc)
         return None
+    if settle_delay > 0:
+        time.sleep(settle_delay)
     text = ""
     try:
         with open(work, "r", encoding="utf-8", errors="replace") as spool:
@@ -288,10 +307,17 @@ class QnxGpioBackend:
 
     DIRECTION_OUT = b"out"
     VALUE_COMMANDS = (b"off", b"on")  # indexed by pin value 0/1
+    RETRY_DELAY_S = 0.05  # F9: one short retry absorbs a transient resmgr hiccup
 
-    def __init__(self, dev_path: str, pins: Sequence[int]):
+    def __init__(
+        self,
+        dev_path: str,
+        pins: Sequence[int],
+        sleep: Callable[[float], None] = time.sleep,
+    ):
         self.dev_path = dev_path
         self.pins = tuple(pins)
+        self._sleep = sleep
 
     def _node_path(self, pin: int) -> str:
         return os.path.join(self.dev_path, str(pin))
@@ -316,10 +342,19 @@ class QnxGpioBackend:
                 ) from exc
 
     def write_pin(self, pin: int, value: int) -> None:
+        command = self.VALUE_COMMANDS[1 if value else 0]
         try:
-            self._command(pin, self.VALUE_COMMANDS[1 if value else 0])
+            self._command(pin, command)
+            return
+        except OSError:
+            pass  # F9: transient? give the resmgr one short retry before failing
+        self._sleep(self.RETRY_DELAY_S)
+        try:
+            self._command(pin, command)
         except OSError as exc:
-            raise BeaconError(f"GPIO write failed (pin {pin}): {exc}") from exc
+            raise BeaconError(
+                f"GPIO write failed (pin {pin}) after retry: {exc}"
+            ) from exc
 
     def close(self) -> None:
         pass  # no persistent handles - every command opens and closes
@@ -425,23 +460,47 @@ class Beacon:
         self.config = config
         self.monotonic = monotonic
         self.sleep = sleep
-        self.frame_history: list[tuple[float, str, str]] = []
+        # F18: keep only the most recent frames so a long run cannot grow memory
+        # without bound. Tests and bench checks only ever read the recent tail.
+        self.frame_history: deque[tuple[float, str, str]] = deque(
+            maxlen=MAX_FRAME_HISTORY
+        )
         self.pending_flags = 0  # OR-merged classes waiting for the next sequence
         self.active_flags: int | None = None  # sequence on air right now
 
-    def send_frame(self, flags: int, kind: str, progress: str | None = None) -> None:
+    def send_frame(self, flags: int, kind: str, progress: str | None = None) -> bool:
         """Transmit one frame, logging its start and completion (E6).
 
         `progress` is "n/m" for a repeat within an emergency sequence; the
-        heartbeat and one-shot paths leave it None.
+        heartbeat and one-shot paths leave it None. Returns True when the frame
+        went out fully, False when a GPIO error aborted it.
+
+        F9: a GPIO write error aborts THIS frame safely (coil driven off,
+        best-effort) but is NEVER allowed to escape and kill the daemon loop -
+        a crash that stops heartbeats is worse than a dropped frame.
         """
         bits = build_frame(flags)
         started = self.monotonic()
         self.frame_history.append((started, bits, kind))
         where = f" frame {progress}" if progress else ""
         LOG.info("tx start: %s %s%s bits=%s", kind, coded_label(flags), where, bits)
-        self.transmitter.transmit_frame(bits)
+        try:
+            self.transmitter.transmit_frame(bits)
+        except BeaconError as exc:
+            LOG.error(
+                "tx ABORTED (GPIO): %s %s%s: %s", kind, coded_label(flags), where, exc
+            )
+            self._safe_coil_off()
+            return False
         LOG.info("tx done: %s %s%s", kind, coded_label(flags), where)
+        return True
+
+    def _safe_coil_off(self) -> None:
+        """Best-effort coil-off after a GPIO abort; never raises (F9)."""
+        try:
+            self.transmitter.driver.all_off()
+        except BeaconError as exc:
+            LOG.error("coil-off after abort also failed: %s", exc)
 
     def _discard_stale_spool(self) -> None:
         """The trigger queue never survives across runs."""
@@ -455,7 +514,7 @@ class Beacon:
 
     def _poll_triggers(self) -> bool:
         """Consume the spool into pending state; True if stop was requested."""
-        batch = consume_spool(self.config.spool_path)
+        batch = consume_spool(self.config.spool_path, self.config.spool_settle_s)
         if batch is None:
             return False
         if batch.stop:
@@ -465,6 +524,12 @@ class Beacon:
                 coded_label(self.active_flags) if self.active_flags is not None else "-",
             )
             self.pending_flags = 0
+            if batch.flags:
+                # F4: class tokens written AFTER the stop in this batch survive.
+                # The active sequence (if any) is being aborted by this same
+                # stop, so queue the survivors fresh - no debounce against it.
+                self.pending_flags = batch.flags
+                LOG.info("queued after stop: %s", coded_label(batch.flags))
             return True
         duplicate = batch.flags & (self.pending_flags | (self.active_flags or 0))
         fresh = batch.flags & ~duplicate
@@ -491,6 +556,7 @@ class Beacon:
         self.active_flags = flags
         sent = 0
         stopped = False
+        failed = False  # F9: a GPIO abort on any repeat suppresses SIGNAL SENT
         try:
             for repeat in range(self.config.emergency_repeats):
                 if budget is not None and sent >= budget:
@@ -500,11 +566,12 @@ class Beacon:
                     if self._poll_triggers():
                         stopped = True
                         break
-                self.send_frame(
+                if not self.send_frame(
                     flags,
                     "emergency",
                     progress=f"{repeat + 1}/{self.config.emergency_repeats}",
-                )
+                ):
+                    failed = True
                 sent += 1
                 if repeat + 1 < self.config.emergency_repeats and self._poll_triggers():
                     stopped = True
@@ -514,6 +581,15 @@ class Beacon:
         if stopped:
             LOG.info(
                 "emergency sequence aborted: %s after %d of %d repeats",
+                coded_label(flags),
+                sent,
+                self.config.emergency_repeats,
+            )
+        elif failed:
+            # Never claim SIGNAL SENT when a frame did not go out (silence must
+            # stay honest so the surface can trust the log).
+            LOG.error(
+                "emergency sequence had GPIO failures: %s (%d/%d frames attempted)",
                 coded_label(flags),
                 sent,
                 self.config.emergency_repeats,
@@ -542,11 +618,14 @@ class Beacon:
         sent = 0
         try:
             while max_frames is None or sent < max_frames:
-                stop = self._poll_triggers()
+                # Poll the spool for its side effects only. A stop clears the
+                # pending queue (and aborts any active sequence via the polls
+                # inside _run_sequence). F3: a stop must NEVER touch the
+                # heartbeat clock - resetting it on a stop could nearly double
+                # the radio silence and break silence-is-alarm.
+                self._poll_triggers()
                 now = self.monotonic()
-                if stop:
-                    next_heartbeat = now + interval
-                elif self.pending_flags:
+                if self.pending_flags:
                     flags = self.pending_flags
                     self.pending_flags = 0
                     budget = None if max_frames is None else max_frames - sent
@@ -669,7 +748,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         action="append",
         metavar="CLASS",
         help="one-shot: transmit a single frame for CLASS(es) "
-        "(fire/injured/lost/trapped/sos/heartbeat or 4-bit flags) and exit",
+        "(fire/injured/lost/trapped/sos) and exit",
     )
     parser.add_argument("--sim", action="store_true", help="simulated GPIO (no hardware)")
     parser.add_argument(
@@ -677,13 +756,18 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="bare message log format (rocko.sh owns numbering + timestamps)",
     )
-    parser.add_argument("--heartbeat-interval", type=float, default=None)
-    parser.add_argument("--bit-seconds", type=float, default=None)
-    parser.add_argument("--carrier", type=float, default=None)
+    # F7: the four knobs below change the frozen frame contract (timing, carrier,
+    # heartbeat period, GPIO node). They are accepted ONLY with --sim; on real
+    # hardware the contract is not tunable from the CLI.
+    parser.add_argument(
+        "--heartbeat-interval", type=float, default=None, help="(--sim only)"
+    )
+    parser.add_argument("--bit-seconds", type=float, default=None, help="(--sim only)")
+    parser.add_argument("--carrier", type=float, default=None, help="(--sim only)")
     parser.add_argument("--spool", default=None)
     parser.add_argument("--pidfile", default=None)
     parser.add_argument("--log-file", default=None)
-    parser.add_argument("--gpio-dev", default=None)
+    parser.add_argument("--gpio-dev", default=None, help="(--sim only)")
     return parser.parse_args(argv)
 
 
@@ -700,12 +784,48 @@ def _config_from_args(args: argparse.Namespace) -> Config:
     config = replace(
         Config(), **{key: value for key, value in overrides.items() if value is not None}
     )
+    if args.sim:
+        # F12: a --sim run must NEVER remove or race the live daemon's files.
+        # Unless the operator overrode them explicitly, point the spool and
+        # pidfile at sim-suffixed defaults so a bench run leaves the real ones
+        # (and thus the real coil's queue) untouched.
+        defaults = Config()
+        if args.spool is None:
+            config = replace(config, spool_path=defaults.spool_path + ".sim")
+        if args.pidfile is None:
+            config = replace(config, pidfile_path=defaults.pidfile_path + ".sim")
     config.validate()
     return config
 
 
+def _reject_off_contract_knobs(args: argparse.Namespace) -> list[str]:
+    """F7: contract-changing knobs are legal only under --sim. Returns the
+    offending flag names (empty when the invocation is contract-safe)."""
+    if args.sim:
+        return []
+    knobs = {
+        "--heartbeat-interval": args.heartbeat_interval,
+        "--bit-seconds": args.bit_seconds,
+        "--carrier": args.carrier,
+        "--gpio-dev": args.gpio_dev,
+    }
+    return [name for name, value in knobs.items() if value is not None]
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
+
+    # F7: reject frame-contract knobs on real hardware BEFORE touching any GPIO.
+    off_contract = _reject_off_contract_knobs(args)
+    if off_contract:
+        print(
+            "refusing off-contract knob(s) "
+            f"{off_contract} without --sim: the frame contract is frozen "
+            "(docs/equipment-codes.md). No GPIO was touched.",
+            file=sys.stderr,
+        )
+        return 2
+
     try:
         config = _config_from_args(args)
     except ValueError as exc:
@@ -735,7 +855,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         transmitter = FrameTransmitter(driver, config)
         beacon = Beacon(transmitter, config)
         if send_flags is not None:
-            beacon.send_frame(send_flags, "one-shot")
+            # F9: send_frame swallows GPIO errors to keep the daemon alive, but
+            # a one-shot bench send must still report failure via its exit code.
+            if not beacon.send_frame(send_flags, "one-shot"):
+                return 1
         else:
             beacon.run()
         return 0
@@ -747,8 +870,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             driver.all_off()  # coil off and ENB low, ALWAYS
         except BeaconError as exc:
             LOG.error("cleanup GPIO write failed: %s", exc)
-        except Exception:  # backend never opened - nothing to switch off
-            pass
+        except Exception as exc:  # F17: never silently swallow the unexpected
+            LOG.error("unexpected error during coil-off cleanup: %s", exc)
         backend.close()
         if lock is None or lock.held:
             # We owned the coil: the trigger queue dies with us. (If the
