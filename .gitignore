@@ -13,3 +13,6 @@ data/context/fm/.state.*
 data/context/fm/PAUSE
 data/context/fm/.lock/
 data/context/fm/merge.lock/
+
+__pycache__/
+*.py[cod]
