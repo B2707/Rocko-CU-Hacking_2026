@@ -23,7 +23,7 @@ uses regular OOK Manchester at one second per bit:
 A complete transmission lasts 28 seconds. The coil is disabled for 15 seconds
 between messages.
 
-The receiver applies a fourth-order 7–9 Hz Butterworth bandpass and a Hilbert
+The receiver applies a fourth-order 7.25–8.75 Hz Butterworth bandpass and a Hilbert
 transform, synchronizes against the encoded tilde, and evaluates five decoders:
 
 - `naive-max`: larger Manchester half correlation per bit;

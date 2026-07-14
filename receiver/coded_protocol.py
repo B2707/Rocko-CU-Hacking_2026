@@ -13,7 +13,7 @@ import numpy as np
 
 HEADER_BYTE = 0x7E
 CARRIER_HZ = 8.0
-BANDWIDTH_HZ = 2.0
+BANDWIDTH_HZ = 1.5  # tight 7.25-8.75 Hz passband; preserves Manchester edges
 BIT_SECONDS = 1.0
 HALF_SYMBOL_SECONDS = 0.5
 DEFAULT_SAMPLE_RATE_HZ = 200.0

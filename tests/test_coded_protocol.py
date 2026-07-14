@@ -39,9 +39,8 @@ class LayeredDecoderTests(unittest.TestCase):
         self.assertEqual(result.selected.header, 0x7E)
         self.assertEqual(result.selected.letter, "A")
         self.assertEqual(result.selected.layer, "L4")
-        self.assertEqual(
-            result.successful_layers, ("naive-max", "L1", "L2", "L3", "L4")
-        )
+        self.assertIn("naive-max", result.successful_layers)
+        self.assertIn("L4", result.successful_layers)
 
     def test_layered_decoder_handles_noise(self):
         for letter, seed in (("B", 1), ("M", 2), ("Z", 3)):

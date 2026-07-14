@@ -29,7 +29,7 @@ def main():
     axes[0].set_ylabel("Raw ADC"); axes[0].legend()
     axes[1].plot(t, band_x, lw=.8, label="Sensor 1")
     axes[1].plot(t, band_y, lw=.7, alpha=.7, label="Sensor 2")
-    axes[1].set_ylabel("7-9 Hz bandpass"); axes[1].legend()
+    axes[1].set_ylabel("7.25-8.75 Hz bandpass"); axes[1].legend()
     axes[2].plot(t, amplitude, lw=1.0, color="#059669")
     axes[2].axvline(result.start_time, color="#f59e0b", lw=1.4)
     axes[2].set_ylabel("Carrier amplitude"); axes[2].set_xlabel("Time (s)")
