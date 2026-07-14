@@ -35,13 +35,13 @@ rocko.sh photo [image]        # defaults to /data/home/qnxuser/cnn/demo.jpg
 ```
 
 If the model (or labels) is not installed yet, the script prints a clear
-`ERROR ... not installed yet` event and exits non-zero — it never crashes or
+`ERROR ... not installed yet` event and exits non-zero, it never crashes or
 dumps a traceback (decision 3).
 
 ## Dependencies on the Pi
 
 ```
-apk add python3-tflite-runtime    # oss.qnx.com — the competition AI module
+apk add python3-tflite-runtime    # oss.qnx.com, the competition AI module
 # plus numpy and Pillow (PIL) available to python3
 ```
 

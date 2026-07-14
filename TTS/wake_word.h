@@ -2,7 +2,7 @@
  * Wake-phrase gate (project Rocko). Only the phrase said AFTER the wake
  * phrase is classified; everything else is ignored. This is the text-side of
  * "voice activation": Whisper transcribes all speech, and this decides what
- * counts as a command. It is the SINGLE choke point — the shell listener pipes
+ * counts as a command. It is the SINGLE choke point, the shell listener pipes
  * raw transcripts straight in and never fabricates a wake word.
  *
  * Wake phrase = "hey rocko help" (decision 1, 2026-07-12). Matching is robust
@@ -12,7 +12,7 @@
  * stray "help" or "rocko" in normal speech never opens the gate.
  *
  * Saying the phrase ALONE (nothing meaningful after it) is handled by the
- * caller as SOS — see classifier.c run_one().
+ * caller as SOS, see classifier.c run_one().
  */
 #ifndef WAKE_WORD_H
 #define WAKE_WORD_H

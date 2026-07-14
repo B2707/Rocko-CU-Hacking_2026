@@ -41,7 +41,7 @@ echo "i think i broke my ankle" | ./classifier                  # -> (nothing: g
 ```
 
 ### 3. Improve accuracy
-Add rows to `emergency_data.csv` — especially real transcripts from your own
+Add rows to `emergency_data.csv`, especially real transcripts from your own
 whisper.cpp on the Pi, including its mistakes (train on the noisy text you'll
 actually see). Then:
 ```bash
@@ -55,7 +55,7 @@ make qnx                          # produces classifier_qnx
 scp classifier_qnx model.h user@pi5:/home/user/
 ```
 `model.h` is compiled into the binary, so `classifier_qnx` is fully
-self-contained — nothing else to copy.
+self-contained, nothing else to copy.
 
 ### 5. Wire to whisper.cpp
 whisper.cpp emits `[timestamps] text`. Strip the prefix and pipe:

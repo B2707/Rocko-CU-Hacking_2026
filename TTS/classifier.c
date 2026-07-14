@@ -28,7 +28,7 @@
 #include "cancel_word.h"
 
 /* NOTE: train.py's analyze() has no token/line caps; these bounds are an
- * intentional C-side divergence — spoken commands are short, and anything
+ * intentional C-side divergence, spoken commands are short, and anything
  * past 64 tokens contributes almost nothing after L2 normalization. */
 #define MAX_TOKENS 64
 #define MAX_GRAM   160

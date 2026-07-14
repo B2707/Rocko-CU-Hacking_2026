@@ -1,6 +1,6 @@
 """Photo classifier tests: pure helpers + graceful-degrade paths.
 
-No tflite/PIL needed — the heavy deps are imported lazily inside the module, so
+No tflite/PIL needed, the heavy deps are imported lazily inside the module, so
 the model-missing and labels/rank/label-loading paths run everywhere. The real
 inference is verified on the Pi (see photo/README.md).
 """

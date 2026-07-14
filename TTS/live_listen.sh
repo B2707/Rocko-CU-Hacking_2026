@@ -6,7 +6,7 @@
 # Records short chunks, transcribes each, and feeds the text to the classifier.
 # The classifier is the SINGLE wake-phrase gate ("hey rocko help", see
 # wake_word.h): a transcript with no wake phrase produces no output. There is no
-# cross-chunk arming here — that carry-over (once "device" was heard, later
+# cross-chunk arming here, that carry-over (once "device" was heard, later
 # chunks were force-classified) was the "no-wake" misfire. Each chunk is one
 # independent decision now.
 #

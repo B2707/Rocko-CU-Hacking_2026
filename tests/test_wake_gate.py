@@ -109,7 +109,7 @@ class WakeGateTests(unittest.TestCase):
         self.assertEqual(self.first_token("hey rocko help cancel"), "stop")
 
     def test_help_word_without_wake_phrase_does_not_fire(self):
-        # "help" alone must NOT open the gate — it is part of the phrase, not the
+        # "help" alone must NOT open the gate, it is part of the phrase, not the
         # trigger (proves the phrase is required, not just the word).
         self.assertEqual(self.classify("can you help me please"), "")
 

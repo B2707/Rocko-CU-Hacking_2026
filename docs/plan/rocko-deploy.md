@@ -1,7 +1,7 @@
-# Rocko — Pi deployment map (hardening v2)
+# Rocko, Pi deployment map (hardening v2)
 
 How the explorer-side files land on the QNX Pi 5 (`qnxpi17`, `ssh qnxpi`).
-Deployment happens later, separately — this is the map, not a run.
+Deployment happens later, separately, this is the map, not a run.
 
 ## File → Pi path → build step
 
@@ -9,7 +9,7 @@ Deployment happens later, separately — this is the map, not a run.
 |-----------|---------|----------------|
 | `rocko.sh` | `/data/home/qnxuser/rocko.sh` | none (POSIX sh; `sh -n` clean) |
 | `TTS/live_listen_qnx.sh` | `/data/home/qnxuser/audio/live_listen_qnx.sh` | none (POSIX sh) |
-| `TTS/classifier.c` | `/data/home/qnxuser/audio/classifier.c` | **yes** — `make classifier` in `/data/home/qnxuser/audio` (clang, native) |
+| `TTS/classifier.c` | `/data/home/qnxuser/audio/classifier.c` | **yes**, `make classifier` in `/data/home/qnxuser/audio` (clang, native) |
 | `TTS/wake_word.h` | `/data/home/qnxuser/audio/wake_word.h` | compiled into `classifier` |
 | `TTS/cancel_word.h` | `/data/home/qnxuser/audio/cancel_word.h` | compiled into `classifier` |
 | `TTS/keyword_override.h` | `/data/home/qnxuser/audio/keyword_override.h` | compiled into `classifier` |
@@ -19,14 +19,14 @@ Deployment happens later, separately — this is the map, not a run.
 | `photo/photo_classify.py` | `/data/home/qnxuser/cnn/photo_classify.py` | none (python3) |
 | `photo/labels.txt` | `/data/home/qnxuser/cnn/labels.txt` | none |
 
-## Not in the repo — dropped onto the Pi separately
+## Not in the repo, dropped onto the Pi separately
 
 | Pi path | What | Source |
 |---------|------|--------|
 | `/data/home/qnxuser/cnn/injury.tflite` | ~16 MB converted EfficientNet-B0 | separate conversion of `CNN/outputs/best_model.pt` |
 | `/data/home/qnxuser/cnn/demo.jpg` | default demo photo | `CNN/test_data/` |
 | `/data/home/qnxuser/whisper.cpp/...` | whisper-cli + `ggml-tiny.en.bin` | already on the Pi |
-| `/data/home/qnxuser/.rocko_pass` | sudo password for the Decision-2 audio bring-up | created at deploy time (below) — **never committed** |
+| `/data/home/qnxuser/.rocko_pass` | sudo password for the Decision-2 audio bring-up | created at deploy time (below), **never committed** |
 
 ### Sudo pass-file for audio bring-up
 
@@ -45,7 +45,7 @@ chmod 600 /data/home/qnxuser/.rocko_pass
 If this file is missing, unreadable, or empty, `rocko.sh` skips the automatic
 bring-up and prints the exact manual command instead
 (`sudo sh -c 'slay io-snd; io-snd -c /etc/system/config/sound/io_snd.conf'`),
-then continues — the beacon still runs, and the listener reports/retries the
+then continues, the beacon still runs, and the listener reports/retries the
 mic. The pass-file is only read for this one sanctioned bring-up.
 
 ## One-time Pi setup
@@ -70,7 +70,7 @@ chmod 600 /data/home/qnxuser/.rocko_pass
 - Syntax-check before shipping: `sh -n rocko.sh`, `sh -n live_listen_qnx.sh`,
   `python3 -m py_compile transmitter.py photo_classify.py`.
 
-## Run (operator, on the Pi — not part of this task)
+## Run (operator, on the Pi, not part of this task)
 
 ```sh
 sh /data/home/qnxuser/rocko.sh          # full beacon

@@ -1,9 +1,9 @@
-# Beacon Frame — flags contract (12 bits)
+# Beacon Frame, flags contract (12 bits)
 
 > **FROZEN 2026-07-12 (hardening v2, PR #9).** The payload is 4 **condition
 > flags** that OR together, behind a tilde preamble. This table is the interface
 > between the AI code (classifier), the frame encoder
-> (`transmitter/transmitter.py`), and the surface decoder — change it only by
+> (`transmitter/transmitter.py`), and the surface decoder, change it only by
 > telling everyone. The bits, preamble, modulation, timing, repeat counts, and
 > heartbeat period are the agreed contract (decision 4); hardening v2 only ADDS
 > logging, naming, and robustness around it.
@@ -19,12 +19,12 @@
 
 | Flags | Meaning | Trigger |
 |-------|-------------------------|---------------------------------------|
-| 0000 | Heartbeat — alive, no emergency | sent automatically every 120 s |
+| 0000 | Heartbeat, alive, no emergency | sent automatically every 120 s |
 | 1000 | Fire | classifier class `fire` |
 | 0100 | Trapped | classifier class `trapped` |
 | 0010 | Lost | classifier class `lost` |
 | 0001 | Injured | classifier class `injured` |
-| 1111 | SOS / help | wake phrase said alone, or a `[help]` keyword hit with no specific class — a specific classified class (fire/trapped/lost/injured) always wins when one accompanies the help word |
+| 1111 | SOS / help | wake phrase said alone, or a `[help]` keyword hit with no specific class, a specific classified class (fire/trapped/lost/injured) always wins when one accompanies the help word |
 | any other | Combination (flags OR together) | multiple triggers, e.g. 0101 = trapped+injured |
 
 Classifier class `none` never triggers a transmission.

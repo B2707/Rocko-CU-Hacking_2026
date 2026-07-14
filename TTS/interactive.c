@@ -114,7 +114,7 @@ int main(void) {
     char line[MAX_LINE];
     double probs[NUM_CLASSES];
 
-    printf("Emergency classifier — interactive tester\n");
+    printf("Emergency classifier, interactive tester\n");
     printf("Type a phrase and press Enter. Type 'quit' or Ctrl+D to exit.\n");
     printf("Confidence threshold: %.2f\n", (double)CONF_THRESHOLD);
 

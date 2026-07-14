@@ -26,7 +26,7 @@ import os
 import sys
 
 # Drop-in paths on the Pi (override on the CLI). injury.tflite (~16 MB) is NOT
-# in the repo — see photo/README.md for the drop-in contract.
+# in the repo, see photo/README.md for the drop-in contract.
 DEFAULT_MODEL = "/data/home/qnxuser/cnn/injury.tflite"
 DEFAULT_LABELS = "/data/home/qnxuser/cnn/labels.txt"
 DEFAULT_IMAGE = "/data/home/qnxuser/cnn/demo.jpg"
