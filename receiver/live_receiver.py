@@ -272,7 +272,8 @@ class LiveReceiver:
         self.envelope.extend(smoothed)
         self.detector_history.extend(smoothed)
         self._update_detector(times, smoothed)
-        self._update_live_decoder(float(times[-1]))
+        if not self._closed and not hasattr(self, "_close_timer"):
+            self._update_live_decoder(float(times[-1]))
 
     # --- tone / end-of-message detector -----------------------------------
 
@@ -462,12 +463,13 @@ class LiveReceiver:
             self.status_line = "Coded frame rejected"
             self._reset_after_decode()
             return
-        for layer in result.layers:
-            marker = "OK" if layer.success else "--"
-            self.log.emit(
-                "LAYER", f"{layer.layer} {marker} header=0x{layer.header:02X} "
-                f"letter={layer.letter} parity={'ok' if layer.parity_ok else 'bad'}",
-            )
+        if not self.live_frame_reported:
+            for layer in result.layers:
+                marker = "OK" if layer.success else "--"
+                self.log.emit(
+                    "LAYER", f"{layer.layer} {marker} header=0x{layer.header:02X} "
+                    f"letter={layer.letter} parity={'ok' if layer.parity_ok else 'bad'}",
+                )
         chosen = result.selected
         self.log.emit(
             "DECODE", f"header=~ letter={chosen.letter} layer={chosen.layer} "
@@ -479,8 +481,16 @@ class LiveReceiver:
         self._add_decode_marker(result)
         self._reset_after_decode()
         if self.args.stop_after_decode:
-            self.close()
-            plt.close(self.fig)
+            # Closing Matplotlib inside its animation callback invalidates the
+            # callback's timer. Defer shutdown to a separate one-shot timer.
+            self._close_timer = self.fig.canvas.new_timer(interval=1)
+            self._close_timer.single_shot = True
+            self._close_timer.add_callback(self._close_window)
+            self._close_timer.start()
+
+    def _close_window(self):
+        self.close()
+        plt.close(self.fig)
 
     def _reset_after_decode(self):
         self.seen_tone = False
@@ -626,6 +636,8 @@ class LiveReceiver:
         self.status_text.get_bbox_patch().set_facecolor(color)
 
     def update_plot(self, _frame):
+        if self._closed:
+            return ()
         self._drain_samples()
         source_error = getattr(self.source, "error", None)
         if source_error is not None:
