@@ -1,0 +1,745 @@
+# Instincts generated from https://github.com/B2707/CU-hakcing-2026
+# Generated: 2026-07-15T20:03:53.138Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: CU-hakcing-2026-commit-conventional
+trigger: "when writing a commit message"
+confidence: 0.85
+domain: git
+source: repo-analysis
+source_repo: https://github.com/B2707/CU-hakcing-2026
+---
+
+# CU Hakcing 2026 Commit Conventional
+
+## Action
+
+Use conventional commit format with prefixes: feat, fix, docs, test
+
+## Evidence
+
+- 41 commits analyzed
+- Detected conventional commit pattern
+- Examples: feat(transmitter): QNX beacon daemon — 12-bit Manchester frames, spool triggers, heartbeat, test(transmitter): sim-backend coverage — frames, timing, collision, scheduling, cleanup
+
+---
+id: CU-hakcing-2026-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/B2707/CU-hakcing-2026
+---
+
+# CU Hakcing 2026 Commit Length
+
+## Action
+
+Write moderate-length commit messages (~65 characters)
+
+## Evidence
+
+- Average commit message length: 65 chars
+- Based on 41 commits
+
+---
+id: CU-hakcing-2026-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/B2707/CU-hakcing-2026
+---
+
+# CU Hakcing 2026 Naming Files
+
+## Action
+
+Use snake_case naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: snake_case
+
+---
+id: CU-hakcing-2026-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/B2707/CU-hakcing-2026
+---
+
+# CU Hakcing 2026 Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: CU-hakcing-2026-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/B2707/CU-hakcing-2026
+---
+
+# CU Hakcing 2026 Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: CU-hakcing-2026-test-separate
+trigger: "when writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/B2707/CU-hakcing-2026
+---
+
+# CU Hakcing 2026 Test Separate
+
+## Action
+
+Place tests in the tests/ or __tests__/ directory, mirroring src structure
+
+## Evidence
+
+- Separate test directory pattern detected
+- Tests live in dedicated test folders
+
+---
+id: CU-hakcing-2026-test-naming
+trigger: "when creating a test file"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/B2707/CU-hakcing-2026
+---
+
+# CU Hakcing 2026 Test Naming
+
+## Action
+
+Name test files using the pattern: *_test.py
+
+## Evidence
+
+- File pattern: *_test.py
+- Consistent across test files
+
+---
+id: CU-hakcing-2026-workflow-feature-development
+trigger: "when implementing a new feature"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/B2707/CU-hakcing-2026
+---
+
+# CU Hakcing 2026 Workflow Feature Development
+
+## Action
+
+Follow the feature-development workflow:
+1. Add feature implementation
+2. Add tests for feature
+3. Update documentation
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~13x per month
+- Files: **/*.test.*
+
+---
+id: CU-hakcing-2026-workflow-test-driven-development
+trigger: "when adding new functionality"
+confidence: 0.7
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/B2707/CU-hakcing-2026
+---
+
+# CU Hakcing 2026 Workflow Test Driven Development
+
+## Action
+
+Follow the test-driven-development workflow:
+1. Write failing test
+2. Implement code to pass test
+3. Refactor if needed
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~4x per month
+- Files: **/*.test.*, **/*.spec.*, src/**/*
+
+---
+id: CU-hakcing-2026-workflow-feature-implementation-with-tests-and-docs
+trigger: "when doing feature implementation with tests and docs"
+confidence: 0.7
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/B2707/CU-hakcing-2026
+---
+
+# CU Hakcing 2026 Workflow Feature Implementation With Tests And Docs
+
+## Action
+
+Follow the feature-implementation-with-tests-and-docs workflow:
+1. Implement or modify core logic in one or more main source files (e.g., transmitter/transmitter.py, receiver/decoder.py, TTS/classifier.c).
+2. Update or create documentation files (e.g., README.md, ALGORITHM.md, protocol/spec docs).
+3. Add or update test files to cover the new feature (e.g., tests/test_transmitter.py, tests/test_receiver.py, tests/test_wake_gate.py).
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~4x per month
+- Files: transmitter/transmitter.py, receiver/decoder.py, receiver/protocol.py
+
+---
+id: CU-hakcing-2026-workflow-hardening-and-bugfix-with-regression-tests
+trigger: "when doing hardening and bugfix with regression tests"
+confidence: 0.75
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/B2707/CU-hakcing-2026
+---
+
+# CU Hakcing 2026 Workflow Hardening And Bugfix With Regression Tests
+
+## Action
+
+Follow the hardening-and-bugfix-with-regression-tests workflow:
+1. Identify and fix bugs or edge cases in implementation files.
+2. Update or add regression/unit tests to cover the fixed cases.
+3. Sometimes update documentation to reflect changed behavior.
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~5x per month
+- Files: transmitter/transmitter.py, receiver/decoder.py, receiver/live_receiver.py
+
+---
+id: CU-hakcing-2026-workflow-update-or-add-cli-tool-or-script
+trigger: "when doing update or add cli tool or script"
+confidence: 0.65
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/B2707/CU-hakcing-2026
+---
+
+# CU Hakcing 2026 Workflow Update Or Add Cli Tool Or Script
+
+## Action
+
+Follow the update-or-add-cli-tool-or-script workflow:
+1. Add or update a shell script or CLI Python file (e.g., rocko.sh, decode_tilde_message.py, live_listen_qnx.sh).
+2. Update documentation to describe usage or deployment.
+3. Add or update test files to cover script behavior.
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~3x per month
+- Files: rocko.sh, TTS/live_listen_qnx.sh, receiver/decode_tilde_message.py
+
+---
+id: CU-hakcing-2026-workflow-protocol-or-contract-freeze-and-document
+trigger: "when doing protocol or contract freeze and document"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/B2707/CU-hakcing-2026
+---
+
+# CU Hakcing 2026 Workflow Protocol Or Contract Freeze And Document
+
+## Action
+
+Follow the protocol-or-contract-freeze-and-document workflow:
+1. Update implementation files to reflect the new/frozen protocol (e.g., protocol.py, decoder.py, classifier.c).
+2. Update or create documentation/spec files to record the contract (e.g., docs/equipment-codes.md, docs/plan/hardening-v2.md).
+3. Update README or ALGORITHM documentation to match.
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: receiver/protocol.py, receiver/decoder.py, TTS/classifier.c
+
+---
+id: CU-hakcing-2026-workflow-test-suite-expansion-or-proof
+trigger: "when doing test suite expansion or proof"
+confidence: 0.65
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/B2707/CU-hakcing-2026
+---
+
+# CU Hakcing 2026 Workflow Test Suite Expansion Or Proof
+
+## Action
+
+Follow the test-suite-expansion-or-proof workflow:
+1. Create or update test files (e.g., tests/test_transmitter.py, tests/test_wake_gate.py, tests/test_receiver.py, tests/test_photo_classify.py, tests/test_rocko_sh.py).
+2. Sometimes update Makefile or add test runner scripts.
+3. Document new test coverage in commit messages or docs.
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~3x per month
+- Files: tests/test_transmitter.py, tests/test_receiver.py, tests/test_wake_gate.py
+
+---
+id: CU-hakcing-2026-workflow-receiver-dashboard-or-visualization-improvement
+trigger: "when doing receiver dashboard or visualization improvement"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/B2707/CU-hakcing-2026
+---
+
+# CU Hakcing 2026 Workflow Receiver Dashboard Or Visualization Improvement
+
+## Action
+
+Follow the receiver-dashboard-or-visualization-improvement workflow:
+1. Update receiver visualization or dashboard code (e.g., live_receiver.py, plot_receiver.py).
+2. Update event logging or status logic as needed.
+3. Update README or docs to reflect new UI/UX.
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: receiver/live_receiver.py, receiver/plot_receiver.py, receiver/eventlog.py
+
+---
+id: cu-hakcing-2026-naming-files-snake-case
+trigger: "When creating or renaming a file"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: B2707/CU-hakcing-2026
+---
+
+# Cu Hakcing 2026 Naming Files Snake Case
+
+## Action
+
+Use snake_case for file names
+
+## Evidence
+
+- Pattern in folderStructure.commonFolders
+- receiver/protocol.py
+- tests/test_transmitter.py
+
+---
+id: cu-hakcing-2026-naming-functions-camelCase
+trigger: "When defining a function"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: B2707/CU-hakcing-2026
+---
+
+# Cu Hakcing 2026 Naming Functions CamelCase
+
+## Action
+
+Use camelCase for function names
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.functions
+
+---
+id: cu-hakcing-2026-naming-classes-pascal-case
+trigger: "When defining a class"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: B2707/CU-hakcing-2026
+---
+
+# Cu Hakcing 2026 Naming Classes Pascal Case
+
+## Action
+
+Use PascalCase for class names
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.classes
+
+---
+id: cu-hakcing-2026-naming-constants-screaming-snake-case
+trigger: "When defining a constant"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: B2707/CU-hakcing-2026
+---
+
+# Cu Hakcing 2026 Naming Constants Screaming Snake Case
+
+## Action
+
+Use SCREAMING_SNAKE_CASE for constant names
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.constants
+
+---
+id: cu-hakcing-2026-imports-relative
+trigger: "When importing modules within the package"
+confidence: 0.85
+domain: code-style
+source: repo-analysis
+source_repo: B2707/CU-hakcing-2026
+---
+
+# Cu Hakcing 2026 Imports Relative
+
+## Action
+
+Use relative imports
+
+## Evidence
+
+- Pattern in codeStyle.importStyle
+
+---
+id: cu-hakcing-2026-exports-named
+trigger: "When exporting functions or classes"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: B2707/CU-hakcing-2026
+---
+
+# Cu Hakcing 2026 Exports Named
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- Pattern in codeStyle.exportStyle
+
+---
+id: cu-hakcing-2026-test-file-pattern
+trigger: "When creating a test file"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: B2707/CU-hakcing-2026
+---
+
+# Cu Hakcing 2026 Test File Pattern
+
+## Action
+
+Name the file with *_test.py suffix
+
+## Evidence
+
+- Pattern in testing.filePattern
+- tests/test_transmitter.py
+- tests/test_receiver.py
+
+---
+id: cu-hakcing-2026-test-unit-default
+trigger: "When writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: B2707/CU-hakcing-2026
+---
+
+# Cu Hakcing 2026 Test Unit Default
+
+## Action
+
+Write unit tests by default
+
+## Evidence
+
+- Pattern in testing.testTypes
+- tests/test_transmitter.py
+
+---
+id: cu-hakcing-2026-test-add-for-new-feature
+trigger: "When implementing a new feature"
+confidence: 0.95
+domain: testing
+source: repo-analysis
+source_repo: B2707/CU-hakcing-2026
+---
+
+# Cu Hakcing 2026 Test Add For New Feature
+
+## Action
+
+Add or update test files to cover the new feature
+
+## Evidence
+
+- feature-implementation-with-tests-and-docs workflow
+- tests/test_transmitter.py
+- tests/test_receiver.py
+
+---
+id: cu-hakcing-2026-test-add-for-bugfix
+trigger: "When fixing a bug or hardening code"
+confidence: 0.98
+domain: testing
+source: repo-analysis
+source_repo: B2707/CU-hakcing-2026
+---
+
+# Cu Hakcing 2026 Test Add For Bugfix
+
+## Action
+
+Add or update regression/unit tests to cover the fixed cases
+
+## Evidence
+
+- hardening-and-bugfix-with-regression-tests workflow
+- tests/test_transmitter.py
+- tests/test_receiver.py
+
+---
+id: cu-hakcing-2026-test-suite-expansion
+trigger: "When new behavior needs to be regression-guarded or coverage is expanded"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: B2707/CU-hakcing-2026
+---
+
+# Cu Hakcing 2026 Test Suite Expansion
+
+## Action
+
+Create or update test files to cover the new or critical behaviors
+
+## Evidence
+
+- test-suite-expansion-or-proof workflow
+- tests/test_photo_classify.py
+- tests/test_rocko_sh.py
+
+---
+id: cu-hakcing-2026-git-conventional-commits
+trigger: "When writing a commit message"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: B2707/CU-hakcing-2026
+---
+
+# Cu Hakcing 2026 Git Conventional Commits
+
+## Action
+
+Use conventional commit prefixes: feat, fix, docs, test, chore
+
+## Evidence
+
+- feat(transmitter): QNX beacon daemon — 12-bit Manchester frames, spool triggers, heartbeat
+- fix(transmitter): match the real rpi_gpio interface — per-pin out/on/off text nodes
+- docs(rocko): freeze hardening-v2 spec + equipment-codes flag table
+- test(transmitter): sim-backend coverage — frames, timing, collision, scheduling, cleanup
+
+---
+id: cu-hakcing-2026-git-commit-length
+trigger: "When writing a commit message"
+confidence: 0.7
+domain: git
+source: repo-analysis
+source_repo: B2707/CU-hakcing-2026
+---
+
+# Cu Hakcing 2026 Git Commit Length
+
+## Action
+
+Keep commit messages concise, around 65 characters on average
+
+## Evidence
+
+- Pattern in commits.averageLength
+
+---
+id: cu-hakcing-2026-git-chore-for-non-code
+trigger: "When committing non-code changes (e.g., removing binaries, updating gitignore)"
+confidence: 0.8
+domain: git
+source: repo-analysis
+source_repo: B2707/CU-hakcing-2026
+---
+
+# Cu Hakcing 2026 Git Chore For Non Code
+
+## Action
+
+Use the 'chore:' prefix in commit messages
+
+## Evidence
+
+- chore: drop accidentally-committed classifier binary, gitignore build artifacts
+
+---
+id: cu-hakcing-2026-workflow-feature-implementation
+trigger: "When someone wants to add a new major feature, protocol, or module"
+confidence: 0.95
+domain: workflow
+source: repo-analysis
+source_repo: B2707/CU-hakcing-2026
+---
+
+# Cu Hakcing 2026 Workflow Feature Implementation
+
+## Action
+
+Implement or modify core logic, update/create documentation, and add/update tests for the new feature
+
+## Evidence
+
+- feature-implementation-with-tests-and-docs workflow
+- commits: feat(transmitter): QNX beacon daemon...
+- tests/test_transmitter.py
+
+---
+id: cu-hakcing-2026-workflow-hardening-bugfix
+trigger: "When someone needs to fix a bug, address a review finding, or harden an existing workflow"
+confidence: 0.98
+domain: workflow
+source: repo-analysis
+source_repo: B2707/CU-hakcing-2026
+---
+
+# Cu Hakcing 2026 Workflow Hardening Bugfix
+
+## Action
+
+Fix bugs or edge cases, update/add regression/unit tests, and sometimes update documentation
+
+## Evidence
+
+- hardening-and-bugfix-with-regression-tests workflow
+- commits: fix(transmitter): match the real rpi_gpio interface...
+- tests/test_transmitter.py
+
+---
+id: cu-hakcing-2026-workflow-update-cli
+trigger: "When someone wants to provide a new CLI entry point, utility script, or update an existing one"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: B2707/CU-hakcing-2026
+---
+
+# Cu Hakcing 2026 Workflow Update Cli
+
+## Action
+
+Add or update shell script or CLI Python file, update documentation, and add/update test files for the script
+
+## Evidence
+
+- update-or-add-cli-tool-or-script workflow
+- rocko.sh
+- tests/test_rocko_sh.py
+
+---
+id: cu-hakcing-2026-workflow-freeze-contract
+trigger: "When a protocol, data contract, or flag table is finalized or changed"
+confidence: 0.88
+domain: workflow
+source: repo-analysis
+source_repo: B2707/CU-hakcing-2026
+---
+
+# Cu Hakcing 2026 Workflow Freeze Contract
+
+## Action
+
+Update implementation files, documentation/spec files, and README/ALGORITHM docs to reflect the new/frozen protocol
+
+## Evidence
+
+- protocol-or-contract-freeze-and-document workflow
+- docs/equipment-codes.md
+- receiver/protocol.py
+
+---
+id: cu-hakcing-2026-workflow-test-suite-expansion
+trigger: "When a new behavior needs to be regression-guarded or coverage is expanded"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: B2707/CU-hakcing-2026
+---
+
+# Cu Hakcing 2026 Workflow Test Suite Expansion
+
+## Action
+
+Create or update test files, possibly update Makefile or test runner scripts, and document new test coverage
+
+## Evidence
+
+- test-suite-expansion-or-proof workflow
+- tests/test_photo_classify.py
+- TTS/Makefile
+
+---
+id: cu-hakcing-2026-workflow-dashboard-improvement
+trigger: "When someone wants to enhance the receiver's UI/UX or add new visualization features"
+confidence: 0.85
+domain: workflow
+source: repo-analysis
+source_repo: B2707/CU-hakcing-2026
+---
+
+# Cu Hakcing 2026 Workflow Dashboard Improvement
+
+## Action
+
+Update receiver visualization/dashboard code, event logging/status logic, and update README/docs for new UI/UX
+
+## Evidence
+
+- receiver-dashboard-or-visualization-improvement workflow
+- receiver/live_receiver.py
+- receiver/README.md
+
