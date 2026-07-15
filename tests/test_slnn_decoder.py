@@ -43,6 +43,18 @@ class SLNNTests(unittest.TestCase):
         full = slnn_decoder.decode_full(received)
         self.assertEqual((full.header, full.letter), (0x7E, "M"))
 
+    def test_coherent_combining_decodes_clean_capture(self):
+        t, x, y = layered_decoder.synthesize_capture("D", noise_std=0.04)
+        fs = layered_decoder.sample_rate(t)
+        channels = layered_decoder.analytic_channels(x, y, fs)
+        start = int(np.argmin(np.abs(t - 2.0)))
+        coherent = slnn_decoder.coherent_soft_symbols(channels, start, fs)
+        result = slnn_decoder.decode_alphabet(coherent.symbols, "D")
+        self.assertEqual(result.letter, "D")
+        self.assertEqual(result.expected_rank, 1)
+        self.assertGreaterEqual(coherent.tone_coherence, 0)
+        self.assertLessEqual(coherent.tone_coherence, 1.000001)
+
     def test_soft_symbol_input_shape_is_strict(self):
         with self.assertRaises(ValueError):
             slnn_decoder.soft_symbols(np.zeros(27), np.zeros(27))

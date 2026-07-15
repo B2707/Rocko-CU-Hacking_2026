@@ -21,6 +21,10 @@ def main() -> int:
         help="frame start in seconds after the first CSV sample",
     )
     parser.add_argument("--expected", help="optional known letter A-Z, evaluation only")
+    parser.add_argument(
+        "--coherent", action="store_true",
+        help="phase-align and noise-weight both sensors from the known tilde header",
+    )
     args = parser.parse_args()
 
     data = np.atleast_1d(np.genfromtxt(args.csv, delimiter=",", names=True))
@@ -43,8 +47,16 @@ def main() -> int:
     if index + frame_samples > len(t):
         raise SystemExit("complete frame does not fit after requested start")
 
-    r0, r1 = layered_decoder.matched_observations(channels, index, fs)
-    received = slnn_decoder.soft_symbols(r0, r1)
+    if args.coherent:
+        coherent = slnn_decoder.coherent_soft_symbols(channels, index, fs)
+        received = coherent.symbols
+        print(
+            f"Sensor coherence: tone={coherent.tone_coherence:.4f}, "
+            f"silence={coherent.silence_coherence:.4f}"
+        )
+    else:
+        r0, r1 = layered_decoder.matched_observations(channels, index, fs)
+        received = slnn_decoder.soft_symbols(r0, r1)
     expected = args.expected.upper() if args.expected else None
     restricted = slnn_decoder.decode_alphabet(received, expected)
     expected_value = None if expected is None else (protocol.HEADER_BYTE << 8) | ord(expected)

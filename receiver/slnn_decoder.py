@@ -34,6 +34,14 @@ class SLNNResult:
     expected_rank: int | None = None
 
 
+@dataclass(frozen=True)
+class CoherentSoftResult:
+    symbols: np.ndarray
+    weights: np.ndarray
+    tone_coherence: float
+    silence_coherence: float
+
+
 @lru_cache(maxsize=1)
 def alphabet_codebook() -> np.ndarray:
     """The 26 protocol-permitted ``~A`` through ``~Z`` output weights."""
@@ -63,6 +71,77 @@ def soft_symbols(r0: Sequence[float], r1: Sequence[float]) -> np.ndarray:
     if first.shape != (protocol.CODED_BITS,) or second.shape != first.shape:
         raise ValueError(f"expected two {protocol.CODED_BITS}-element observations")
     return first - second
+
+
+def coherent_soft_symbols(
+    channels: Sequence[np.ndarray], start: int, fs: float
+) -> CoherentSoftResult:
+    """Preamble-trained coherent combining of two already-filtered sensors.
+
+    Complex carrier phasors are extracted from every Manchester half. The
+    known encoded tilde identifies tone and silence halves. Their difference
+    estimates the two-sensor channel vector, while silence halves estimate its
+    noise covariance. Maximum-ratio weights combine sensor phase and amplitude
+    before the paired-half differences are passed to the SLNN.
+    """
+    if len(channels) != 2:
+        raise ValueError("coherent combining requires exactly two sensors")
+    half = round(fs * protocol.HALF_SYMBOL_SECONDS)
+    halves = 2 * protocol.CODED_BITS
+    stop = start + halves * half
+    values = [np.asarray(channel) for channel in channels]
+    if start < 0 or any(len(channel) < stop for channel in values):
+        raise ValueError("complete frame does not fit in filtered channels")
+    carrier = np.exp(2j * np.pi * protocol.CARRIER_HZ * np.arange(half) / fs)
+    phasors = np.empty((halves, 2), dtype=complex)
+    for index in range(halves):
+        offset = start + index * half
+        for sensor, channel in enumerate(values):
+            phasors[index, sensor] = (
+                np.vdot(carrier, channel[offset:offset + half]) / np.sqrt(half)
+            )
+
+    header_gate = protocol.manchester_levels(protocol.ENCODED_HEADER).astype(bool)
+    tone = phasors[:len(header_gate)][header_gate]
+    silence = phasors[:len(header_gate)][~header_gate]
+    tone_cov = tone.T @ tone.conj() / len(tone)
+    # Prefer the true transmitter-off interval after the frame. Header OFF
+    # halves contain coherent Butterworth ringing and are not pure noise.
+    noise_start = stop + round(2.5 * fs)
+    available_noise_halves = max(0, (len(values[0]) - noise_start) // half)
+    noise_halves = min(20, available_noise_halves)  # central 10 s of the gap
+    if noise_halves >= 4:
+        noise_phasors = np.empty((noise_halves, 2), dtype=complex)
+        for index in range(noise_halves):
+            offset = noise_start + index * half
+            for sensor, value in enumerate(values):
+                noise_phasors[index, sensor] = (
+                    np.vdot(carrier, value[offset:offset + half]) / np.sqrt(half)
+                )
+    else:
+        noise_phasors = silence
+    noise_cov = noise_phasors.T @ noise_phasors.conj() / len(noise_phasors)
+    ridge = max(float(np.trace(noise_cov).real) / 2, 1e-12) * 1e-6
+    noise_cov = noise_cov + ridge * np.eye(2)
+    channel = tone.mean(axis=0) - silence.mean(axis=0)
+    try:
+        weights = np.linalg.solve(noise_cov, channel)
+    except np.linalg.LinAlgError:
+        weights = np.linalg.pinv(noise_cov) @ channel
+    noise_scale = np.sqrt(max(float(np.vdot(weights, noise_cov @ weights).real), 1e-15))
+    amplitude = np.abs(phasors @ weights.conj()) / noise_scale
+    symbols = amplitude[0::2] - amplitude[1::2]
+
+    def coherence(covariance: np.ndarray) -> float:
+        denominator = float(covariance[0, 0].real * covariance[1, 1].real)
+        return float(abs(covariance[0, 1]) ** 2 / max(denominator, 1e-15))
+
+    return CoherentSoftResult(
+        symbols=symbols,
+        weights=weights,
+        tone_coherence=coherence(tone_cov),
+        silence_coherence=coherence(noise_cov),
+    )
 
 
 def _rank(scores: np.ndarray, expected_index: int | None) -> int | None:
