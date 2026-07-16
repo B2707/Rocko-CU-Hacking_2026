@@ -157,13 +157,13 @@ class HardwarePwmCoil:
     def close(self) -> None:
         if self.GPIO is None:
             return
+        # The QNX extension closes its shared /dev/gpio/msg descriptor inside
+        # PWM.stop(); any GPIO call after stop reports EBADF and can leave a
+        # pending C-extension exception. Force duty and polarity low first and
+        # make stop() the final hardware call. Process exit closes the fd.
         self.all_off()
         if self.pwm is not None:
             self.pwm.stop()
-        # stop() leaves the pin in PWM mode; explicitly restore and drive low.
-        self.GPIO.setup(self.enb_gpio, self.GPIO.OUT)
-        self.GPIO.output(self.enb_gpio, self.GPIO.LOW)
-        self.GPIO.cleanup()
         self.pwm = None
         self.GPIO = None
 
