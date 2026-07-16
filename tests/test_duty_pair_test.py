@@ -54,13 +54,13 @@ class ScheduleTests(unittest.TestCase):
             ),
         )
 
-    def test_estimate_is_six_minutes_fifty_five_seconds(self):
-        self.assertEqual(diagnostic.estimated_seconds(), 415.0)
+    def test_estimate_uses_current_half_baud_frame_duration(self):
+        self.assertEqual(diagnostic.estimated_seconds(), 695.0)
 
     def test_single_frame_schedule_and_duration(self):
         schedule = diagnostic.requested_schedule(0.1, "e")
         self.assertEqual(schedule, ((0.1, "E"),))
-        self.assertEqual(diagnostic.estimated_seconds(schedule=schedule), 28.0)
+        self.assertEqual(diagnostic.estimated_seconds(schedule=schedule), 56.0)
 
     def test_single_frame_arguments_are_strict(self):
         for duty, letter in ((0, "A"), (101, "A"), (0.1, "AA"), (0.1, "1")):

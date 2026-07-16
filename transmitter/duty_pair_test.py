@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import argparse
 import csv
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import os
 import signal
 import statistics
@@ -27,6 +27,7 @@ DUTIES = (100.0, 1.0)
 GAP_SECONDS = 15.0
 ALPHABET_PIDFILE = "/tmp/alphabet_beacon.pid"
 FRAME_BITS = 28
+BIT_SECONDS = 2.0  # current 0.5-coded-bit/s alphabet contract
 
 
 def test_schedule() -> tuple[tuple[float, str], ...]:
@@ -52,7 +53,7 @@ def estimated_seconds(
     schedule: tuple[tuple[float, str], ...] | None = None,
 ) -> float:
     frames = len(schedule if schedule is not None else test_schedule())
-    return frames * FRAME_BITS + max(0, frames - 1) * gap
+    return frames * FRAME_BITS * BIT_SECONDS + max(0, frames - 1) * gap
 
 
 def percentile(values: list[float], fraction: float) -> float:
@@ -199,7 +200,11 @@ def main() -> int:
         return 0
 
     manifest_path = args.manifest or time.strftime("duty-pair-%Y%m%d_%H%M%S.csv")
-    config = hw.Config(pidfile_path=ALPHABET_PIDFILE)
+    # Preserve the exact GPIO27 direct-drive path used by run-alphabet.sh;
+    # only add ENB pulse gating for requested duties below 100%.
+    config = replace(
+        hw.Config(pidfile_path=ALPHABET_PIDFILE), bit_seconds=BIT_SECONDS
+    )
     pins = (config.in3_gpio, config.in4_gpio, config.enb_gpio)
     backend = hw.SimBackend() if args.sim else hw.QnxGpioBackend(config.gpio_dev, pins)
     driver = hw.CoilDriver(backend, config)
