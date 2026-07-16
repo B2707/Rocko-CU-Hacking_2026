@@ -32,6 +32,7 @@ HALF_SYMBOL_SECONDS = BIT_SECONDS / 2
 CARRIER_HZ = 8.0
 PWM_FREQUENCY_HZ = 2 * CARRIER_HZ
 PWM_RANGE = 1024
+PWM_MAX_COUNT = PWM_RANGE - 1  # QNX ChangeDutyCycleAbs requires value < range
 GAP_SECONDS = 15.0
 FRAME_BITS = 28
 IN3_GPIO = 22
@@ -68,11 +69,12 @@ def duty_count(duty: float) -> int:
         raise ValueError("duty must be in [0,100]")
     if duty == 0:
         return 0
-    return max(1, min(PWM_RANGE, round(duty * PWM_RANGE / 100)))
+    return max(1, min(PWM_MAX_COUNT, round(duty * PWM_RANGE / 100)))
 
 
 def actual_duty(duty: float) -> float:
-    return 100.0 * duty_count(duty) / PWM_RANGE
+    # Nominal resolution reported for metadata; received SNR is ground truth.
+    return 100.0 if duty >= 100 else 100.0 * duty_count(duty) / PWM_RANGE
 
 
 @dataclass(frozen=True)
@@ -134,7 +136,10 @@ class HardwarePwmCoil:
         self.GPIO.output(IN4_GPIO, self.GPIO.LOW if forward else self.GPIO.HIGH)
 
     def set_duty(self, duty: float) -> None:
-        self.pwm.ChangeDutyCycleAbs(duty_count(duty))
+        # The QNX percentage API correctly handles the hardware channel's
+        # private range, including 100%. ChangeDutyCycleAbs is not portable
+        # across the RP1 PWM range selected by the resource manager.
+        self.pwm.ChangeDutyCycle(float(duty))
 
     def all_off(self) -> None:
         if self.GPIO is None:
