@@ -40,6 +40,11 @@ rubric and is required before submission.
    placeholders only in committed config.
 6. One writer per memory surface: `gotchas.md` = FM/bot only; `decisions/` =
    one file per decision via PR; you write only into `*-candidates/`.
+7. Project repositories and irreplaceable experiment artifacts NEVER live in
+   `/tmp`, `/var/tmp`, `/private/tmp`, `mktemp` directories, or other ephemeral
+   locations. Use a persistent worktree and
+   `${CU_HAKCING_DATA_DIR:-~/Desktop/CU-hakcing-captures}`; before replacing a
+   worktree, inventory ignored files and preserve every required artifact.
 
 ## Agent duties (reflexes, not suggestions)
 
