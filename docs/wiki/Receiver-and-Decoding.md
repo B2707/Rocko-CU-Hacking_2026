@@ -31,6 +31,18 @@ LLR_i = 2 Re{h^H R^-1 (z_first,i - z_second,i)}
 GNB is an alternative learned bit-metric model, not a required preprocessing
 stage before the analytical LLR.
 
+## Experimental neural whitening
+
+`duong_whitener.py` implements the gain-modulated recurrent circuit from Duong
+et al. rather than a GRU trained by backpropagation. A fixed overcomplete frame
+`W` is used while gains `g` adapt so the equilibrium response is
+`y = [I + W diag(g) W^T]^-1 x`. The current implementation whitens instantaneous
+four-dimensional real/imaginary sensor covariance; it does not guarantee
+temporal independence. Adapt only on transmitter-off data and freeze during a
+frame. Since it converges to symmetric/ZCA whitening, it must be compared with
+ordinary ZCA and cannot be credited with a neural-specific benefit unless it
+adapts better to changing contexts.
+
 ## Decoders
 
 - naive-max: independent Manchester hard decisions.

@@ -21,7 +21,12 @@ The conventional layered decoder and real-trained GNB were weaker.
 
 Autonomous synchronization and H0 rejection remain limiting: many correctly
 decodable 25% frames had encoded-tilde scores below the current 0.8 threshold.
-10% and 1% were below the recoverable range in this placement.
+A first Duong gain-whitening prototype preserved 18/30 decoding and raised
+threshold-crossing correct frames from 12/30 to 16/30, but was numerically
+indistinguishable from static ZCA and became mismatched on the reserved portion
+of the nonstationary ten-minute noise run. It is therefore only a promising
+synchronization-weighting observation, not a demonstrated neural advantage.
+10% and 1% remained below the recoverable range.
 
 ## Next work
 
