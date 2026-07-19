@@ -28,7 +28,7 @@ wake phrase to on-device classification to a frame decoded at the surface.
 |  |  |
 |---|---|
 | ![Building Rocko](docs/images/building-rocko.jpg) | ![The team](docs/images/team.jpg) |
-| **Preping for judging**, the live listener log running on the bench monitor | **The team**, after judging |
+| **Prepping for judging**, the live listener log running on the bench monitor | **The team**, after judging |
 
 ## How it works
 
