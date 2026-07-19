@@ -14,13 +14,6 @@ Every few minutes the device also sends a heartbeat, so if the pings stop
 arriving, the surface knows something is wrong even if no emergency was ever
 spoken. Silence is the alarm.
 
-## Demo Video
-
-[![Rocko demo video](https://img.youtube.com/vi/b3_v2pcWqy0/maxresdefault.jpg)](https://www.youtube.com/watch?v=b3_v2pcWqy0)
-
-**[Watch the demo on YouTube](https://www.youtube.com/watch?v=b3_v2pcWqy0)** -
-wake phrase to on-device classification to a frame decoded at the surface.
-
 ## Team at the awards ceremony
 
 ![First place, QNX stream](docs/images/awards.jpg)
@@ -30,37 +23,14 @@ wake phrase to on-device classification to a frame decoded at the surface.
 | ![Building Rocko](docs/images/building-rocko.jpg) | ![The team](docs/images/team.jpg) |
 | **Prepping for judging**, the live listener log running on the bench monitor | **The team**, after judging |
 
+## Demo Video
+
+[![Rocko demo video](https://img.youtube.com/vi/b3_v2pcWqy0/maxresdefault.jpg)](https://www.youtube.com/watch?v=b3_v2pcWqy0)
+
+**[Watch the demo on YouTube](https://www.youtube.com/watch?v=b3_v2pcWqy0)** -
+wake phrase to on-device classification to a frame decoded at the surface.
+
 ## How it works
-
-```
-EXPLORER DEVICE (Raspberry Pi 5, QNX 8, battery powered)
-  USB mic --> whisper.cpp --> wake phrase gate --> classifier --> transmitter
-  photo   --> TFLite injury model (8 wound classes)
-  GPIO22/17/27 --> L298N driver --> coil --> through rock --> surface sensor
-
-SURFACE STATION (laptop, no second Pi)
-  coil sensor --> Pico (ADC, 200 samples/sec) --> USB serial --> laptop
-  laptop: live 3 pane dashboard, decoder, numbered event log
-```
-
-![The bench rig](docs/images/rig.jpg)
-
-The rig on the bench: the hand wound coil, the Pi in its enclosure on the
-right, and the surface dashboard locked onto a frame mid decode, with QNX on
-the monitor behind.
-
-**Wake phrase**: "hey rocko help", followed by what happened. Saying the
-phrase alone sends an SOS. Saying "hey rocko help, I am okay" cancels a
-pending alert. The wake gate is a single choke point in the code: nothing
-transmits before a real classification happens, and unclear or negated
-speech never gets read as a false all clear.
-
-**Frame format**: an 8 bit preamble (`01111110`) followed by 4 flag bits,
-sent with Manchester encoding on an 8 Hz tone, 1 second per bit. Emergencies
-repeat 3 times with 3 second gaps for reliability. A heartbeat (all flags
-zero) goes out automatically every 120 seconds. The full code table lives in
-[`docs/equipment-codes.md`](docs/equipment-codes.md), this is the contract
-between the explorer side and the surface decoder.
 
 The whole loop, from spoken word to surface alarm:
 
@@ -91,6 +61,36 @@ flowchart TD
 Two fail-safes are baked into the gate: emergency content always outranks the
 cancel word, and negated or unclear speech is never read as an all clear, it
 falls through to SOS.
+
+```
+EXPLORER DEVICE (Raspberry Pi 5, QNX 8, battery powered)
+  USB mic --> whisper.cpp --> wake phrase gate --> classifier --> transmitter
+  photo   --> TFLite injury model (8 wound classes)
+  GPIO22/17/27 --> L298N driver --> coil --> through rock --> surface sensor
+
+SURFACE STATION (laptop, no second Pi)
+  coil sensor --> Pico (ADC, 200 samples/sec) --> USB serial --> laptop
+  laptop: live 3 pane dashboard, decoder, numbered event log
+```
+
+![The bench rig](docs/images/rig.jpg)
+
+The rig on the bench: the hand wound coil, the Pi in its enclosure on the
+right, and the surface dashboard locked onto a frame mid decode, with QNX on
+the monitor behind.
+
+**Wake phrase**: "hey rocko help", followed by what happened. Saying the
+phrase alone sends an SOS. Saying "hey rocko help, I am okay" cancels a
+pending alert. The wake gate is a single choke point in the code: nothing
+transmits before a real classification happens, and unclear or negated
+speech never gets read as a false all clear.
+
+**Frame format**: an 8 bit preamble (`01111110`) followed by 4 flag bits,
+sent with Manchester encoding on an 8 Hz tone, 1 second per bit. Emergencies
+repeat 3 times with 3 second gaps for reliability. A heartbeat (all flags
+zero) goes out automatically every 120 seconds. The full code table lives in
+[`docs/equipment-codes.md`](docs/equipment-codes.md), this is the contract
+between the explorer side and the surface decoder.
 
 ## Quickstart
 
