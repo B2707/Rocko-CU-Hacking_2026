@@ -21,7 +21,7 @@ spoken. Silence is the alarm.
 |  |  |
 |---|---|
 | ![Building Rocko](docs/images/building-rocko.jpg) | ![The team](docs/images/team.jpg) |
-| **Last minute LARP sesh before judging**, the live listener log running on the bench monitor | **The team**, after judging |
+| **Last minute LARP sesh before judging** | **The team**, after judging |
 
 ## Demo Video
 
