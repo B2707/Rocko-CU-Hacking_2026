@@ -14,6 +14,22 @@ Every few minutes the device also sends a heartbeat, so if the pings stop
 arriving, the surface knows something is wrong even if no emergency was ever
 spoken. Silence is the alarm.
 
+## Demo
+
+[![Rocko demo video](https://img.youtube.com/vi/b3_v2pcWqy0/maxresdefault.jpg)](https://www.youtube.com/watch?v=b3_v2pcWqy0)
+
+**[Watch the demo on YouTube](https://www.youtube.com/watch?v=b3_v2pcWqy0)** —
+wake phrase to on-device classification to a frame decoded at the surface.
+
+## The team at CU Hacking 2026
+
+![The team](docs/images/team.jpg)
+
+|  |  |
+|---|---|
+| ![Building Rocko](docs/images/building-rocko.jpg) | ![Awards ceremony](docs/images/awards.jpg) |
+| **Mid-build**, the live listener log running on the bench monitor | **Awards ceremony**, collecting the hardware |
+
 ## How it works
 
 ```
@@ -26,6 +42,12 @@ SURFACE STATION (laptop, no second Pi)
   coil sensor --> Pico (ADC, 200 samples/sec) --> USB serial --> laptop
   laptop: live 3 pane dashboard, decoder, numbered event log
 ```
+
+![The bench rig](docs/images/rig.jpg)
+
+The rig on the bench: the hand wound coil, the Pi in its enclosure on the
+right, and the surface dashboard locked onto a frame mid decode, with QNX on
+the monitor behind.
 
 **Wake phrase**: "hey rocko help", followed by what happened. Saying the
 phrase alone sends an SOS. Saying "hey rocko help, I am okay" cancels a
@@ -73,7 +95,8 @@ threshold. Decoded frames get a marker and a numbered log entry.
 - `docs/equipment-codes.md` -- the frozen frame contract, both sides build against this
 - `docs/adr/` -- why key hardware and protocol decisions were made
 - `docs/plan/` -- product requirements, architecture, and build notes
-- `tests/` -- unit tests for the transmitter, wake gate, photo classifier, and launcher
+- `docs/images/` -- photos of the build and the event
+- `tests/` -- unit tests for the transmitter, receiver, wake gate, photo classifier, and launcher
 
 ## Hardware
 
@@ -85,3 +108,50 @@ threshold. Decoded frames get a marker and a numbered log entry.
 
 See [`docs/plan/ARCHITECTURE.md`](docs/plan/ARCHITECTURE.md) for the full
 wiring diagram and signal chain.
+
+## Link characterization
+
+How much signal actually survives the rock? A separate bench rig answers that:
+a transmitter that sends known symbols (A to Z) through the coil, and a coded
+receiver that decodes them, so link quality is measured instead of assumed.
+This is instrumentation, not the beacon. The emergency path is the 12 bit
+frame described above.
+
+Across 30 frames at five transmit duty cycles:
+
+| Duty | Pooled SNR | Layered decoder | Coherent SLNN |
+|---:|---:|---:|---:|
+| 100% | 3.37 dB | 5/6 | 6/6 |
+| 50% | 4.72 dB | 5/6 | 6/6 |
+| 25% | 0.18 dB | 3/6 | 6/6 |
+| 10% | no positive estimate | 0/6 | 0/6 |
+| 1% | -29.49 dB | 0/6 | 0/6 |
+
+The coherent SLNN decoder holds 6/6 down to 0.18 dB, where the simpler layered
+decoder falls to 3/6. Below 10% duty nothing decodes. On held out frames the
+SLNN generalized on 3 of 5, including one at -2.42 dB when the scheduled frame
+boundary was supplied.
+
+Caveat recorded with the run: people walked across the link during some frames
+and those frame identities were not logged, so this is a mixed clean and
+interference dataset rather than a controlled sweep.
+
+The rig, the decoders, and the full results live on the `task/receiver-v2`
+branch ([results](https://github.com/B2707/Rocko-CU-Hacking_2026/blob/task/receiver-v2/docs/wiki/Results-2026-07-16.md)),
+built by Mohammad Steitieh.
+
+## Tests
+
+```bash
+python3 -m pip install numpy
+python3 -m unittest discover -s tests
+```
+
+97 tests, no hardware required. The receiver tests decode synthetic waveforms,
+the transmitter tests run against a simulation backend.
+
+## License
+
+Proprietary, all rights reserved. Visible for evaluation and judging only.
+No permission is granted to use, copy, modify, or distribute this work.
+See [`LICENSE`](LICENSE).

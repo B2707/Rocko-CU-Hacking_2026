@@ -1,0 +1,30 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: unit tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # numpy is the only third-party import across tests/. The receiver's
+      # matplotlib and pyserial deps are not needed: the decode tests run
+      # against synthetic waveforms, with no dashboard and no hardware.
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy
+
+      - name: Run tests
+        run: python -m unittest discover -s tests -v

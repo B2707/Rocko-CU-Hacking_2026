@@ -1,23 +1,21 @@
+# Secrets
 .env
 .env.*
 !.env.example
-node_modules/
-dist/
-.DS_Store
-*.log
-.task/worktrees/
-.stack-stamp-probe.*
-# First Mate / River runtime state (data/context/fm/README.md is committed; these are per-machine)
-data/context/fm/state.json
-data/context/fm/.state.*
-data/context/fm/PAUSE
-data/context/fm/.lock/
-data/context/fm/merge.lock/
 
+# Python
 __pycache__/
 *.py[cod]
+.venv/
 
-# compiled classifier binary (build artifact)
+# Compiled classifier binaries (built on the Pi)
 TTS/classifier
 TTS/classifier_qnx
 TTS/interactive
+
+# Recorded signal captures (data, not source)
+receiver/captures/
+*.log
+
+# macOS
+.DS_Store
