@@ -25,7 +25,7 @@ wake phrase to on-device classification to a frame decoded at the surface.
 
 ![First place, QNX stream](docs/images/awards.jpg)
 
-**First place in the QNX stream** -- the team at the awards ceremony.
+**Team at the awards ceremony** 
 
 |  |  |
 |---|---|
