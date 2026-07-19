@@ -1,6 +1,9 @@
 # Carrier frequency, locked by the TMR sensor bandwidth
 
-The team's TMR sensors are single axis, analog, and only respond usefully in
+The team's TMR (tunnel magnetoresistance) sensors read the field through
+quantum tunneling: electrons cross a nanometer thin insulating barrier between
+two ferromagnetic layers, and the tunneling resistance shifts with the
+magnetic field. They are single axis, analog, and only respond usefully in
 the 0 to 10 Hz band. Published through-the-earth systems run carriers from
 300 Hz up to several kHz, but anything above roughly 10 Hz is invisible to
 this hardware, so the carrier has to live inside that band.

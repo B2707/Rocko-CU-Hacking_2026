@@ -7,8 +7,9 @@ under QNX 8. It listens for a spoken emergency, classifies it on device with
 TFLite, and sends the result through solid rock to the surface using a
 low frequency magnetic field, the same principle real mine rescue beacons use.
 A photo based injury classifier runs on the same device for cases where a
-camera feed is available. A surface station (a coil sensor wired to a Pico,
-plugged into a laptop) decodes the signal and shows what happened, when.
+camera feed is available. A surface station (a quantum tunneling TMR sensor
+wired to a Pico, plugged into a laptop) decodes the signal and shows what
+happened, when.
 
 Every few minutes the device also sends a heartbeat, so if the pings stop
 arriving, the surface knows something is wrong even if no emergency was ever
@@ -51,7 +52,7 @@ flowchart TD
     end
     TX -->|8 Hz Manchester tone, through rock| ADC
     subgraph SURFACE [Surface station, laptop and Pico]
-        ADC[coil sensor, Pico ADC] --> DEC[bandpass, preamble lock, decode]
+        ADC[TMR quantum sensor, Pico ADC] --> DEC[bandpass, preamble lock, decode]
         DEC --> LOG[dashboard, numbered event log]
         DEC --> WD[watchdog, expects a heartbeat]
         WD -->|none in time| ALARM[raise the alarm<br>silence is the alarm]
@@ -69,7 +70,7 @@ EXPLORER DEVICE (Raspberry Pi 5, QNX 8, battery powered)
   GPIO22/17/27 --> L298N driver --> coil --> through rock --> surface sensor
 
 SURFACE STATION (laptop, no second Pi)
-  coil sensor --> Pico (ADC, 200 samples/sec) --> USB serial --> laptop
+  TMR quantum sensor --> Pico (ADC, 200 samples/sec) --> USB serial --> laptop
   laptop: live 3 pane dashboard, decoder, numbered event log
 ```
 
@@ -133,8 +134,12 @@ threshold. Decoded frames get a marker and a numbered log entry.
 - Explorer device: one Raspberry Pi 5, QNX 8, USB microphone, L298N motor
   driver wired to a hand wound coil. GPIO22 to IN3, GPIO17 to IN4, GPIO27 to
   ENB, coil on OUT3/OUT4. 12 V only touches the L298N, grounds are shared.
-- Surface station: a magnetic sensor wired to a Raspberry Pi Pico (ADC
-  digitizer), USB serial to a laptop. No second Pi.
+- Surface station: a TMR (tunnel magnetoresistance) magnetic sensor, a
+  genuinely quantum detector. Electrons tunnel through a nanometer thin
+  insulating barrier between two ferromagnetic layers, and the tunneling
+  resistance tracks the magnetic field, so the beacon is literally read
+  through quantum tunneling. Wired to a Raspberry Pi Pico (ADC digitizer),
+  USB serial to a laptop. No second Pi.
 
 See [`docs/plan/ARCHITECTURE.md`](docs/plan/ARCHITECTURE.md) for the full
 wiring diagram and signal chain.
