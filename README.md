@@ -21,11 +21,9 @@ spoken. Silence is the alarm.
 **[Watch the demo on YouTube](https://www.youtube.com/watch?v=b3_v2pcWqy0)** -
 wake phrase to on-device classification to a frame decoded at the surface.
 
-## First place at CU Hacking 2026
+## Team at the awards ceremony
 
 ![First place, QNX stream](docs/images/awards.jpg)
-
-**Team at the awards ceremony** 
 
 |  |  |
 |---|---|
