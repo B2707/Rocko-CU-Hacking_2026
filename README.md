@@ -1,6 +1,6 @@
 # Rocko
 
-**Cave Explorer Safety Beacon -- 🏆 First place, QNX stream, CU Hacking 2026**
+**Cave Explorer Safety Beacon - 🏆 1st place at CU Hacking 2026 (QNX stream)**
 
 A cave explorer carries Rocko, a handheld device running on a Raspberry Pi 5
 under QNX 8. It listens for a spoken emergency, classifies it on device with
