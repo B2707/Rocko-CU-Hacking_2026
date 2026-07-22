@@ -105,7 +105,13 @@ sh rocko.sh
 
 One command starts the audio pipeline and the coil transmitter together, with
 a numbered, timestamped event log on screen. `sh rocko.sh photo <image>`
-classifies a wound photo instead.
+classifies a wound photo instead, using the on-Pi TFLite model by default.
+To run Said's in-repo PyTorch CNN instead (its trained model ships in
+`CNN/outputs/`, needs `pip install -r CNN/requirements.txt`):
+
+```bash
+ROCKO_PHOTO_BACKEND=cnn sh rocko.sh photo <image>
+```
 
 Surface station, on the laptop:
 

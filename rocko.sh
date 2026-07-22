@@ -24,6 +24,10 @@
 
 set -u
 
+# Directory holding this script (the repo root in a checkout). Lets the cnn
+# photo backend find CNN/predict.py without hardcoding a Pi path.
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && pwd)
+
 # --- deployment paths (override via env) --------------------------------
 ROCKO_HOME=${ROCKO_HOME:-/data/home/qnxuser}
 AUDIO_DIR=${AUDIO_DIR:-$ROCKO_HOME/audio}
@@ -35,6 +39,13 @@ PHOTO_SCRIPT=${ROCKO_PHOTO:-$CNN_DIR/photo_classify.py}
 PHOTO_MODEL=${ROCKO_PHOTO_MODEL:-$CNN_DIR/injury.tflite}
 PHOTO_LABELS=${ROCKO_PHOTO_LABELS:-$CNN_DIR/labels.txt}
 PHOTO_IMAGE=${ROCKO_PHOTO_IMAGE:-$CNN_DIR/demo.jpg}
+
+# Injury-photo backend. "tflite" (default) is the sanctioned oss.qnx.com path
+# on the Pi. "cnn" runs Said Elakad's PyTorch classifier (CNN/predict.py), whose
+# trained model ships in the repo (CNN/outputs/), so it works off-Pi with torch.
+PHOTO_BACKEND=${ROCKO_PHOTO_BACKEND:-tflite}
+PHOTO_TOPK=${ROCKO_PHOTO_TOPK:-3}
+CNN_PREDICT=${ROCKO_CNN_PREDICT:-$SCRIPT_DIR/CNN/predict.py}
 
 PY=${PYTHON:-python3}
 MIC_NODE=${MIC_NODE:-/dev/snd/pcmC0D0c}
@@ -235,8 +246,17 @@ cmd_run() {
 cmd_photo() {
     img=${1:-$PHOTO_IMAGE}
     rotate_log
-    if [ ! -f "$PHOTO_SCRIPT" ]; then
-        printf 'ERROR photo classifier not found: %s\n' "$PHOTO_SCRIPT" \
+    # Pick the backend. tflite is the sanctioned Pi path (--model/--labels);
+    # cnn is Said Elakad's in-repo PyTorch classifier (image + --topk).
+    if [ "$PHOTO_BACKEND" = cnn ]; then
+        photo_script=$CNN_PREDICT
+        set -- "$img" --topk "$PHOTO_TOPK"
+    else
+        photo_script=$PHOTO_SCRIPT
+        set -- "$img" --model "$PHOTO_MODEL" --labels "$PHOTO_LABELS"
+    fi
+    if [ ! -f "$photo_script" ]; then
+        printf 'ERROR photo classifier not found: %s\n' "$photo_script" \
             | numberer
         exit 1
     fi
@@ -245,8 +265,7 @@ cmd_photo() {
     # the producer subshell, then propagate it as our own exit code.
     rcfile=$(mktemp 2>/dev/null || echo "/tmp/rocko_photo_rc.$$")
     {
-        "$PY" "$PHOTO_SCRIPT" "$img" \
-            --model "$PHOTO_MODEL" --labels "$PHOTO_LABELS" 2>&1
+        "$PY" "$photo_script" "$@" 2>&1
         echo $? > "$rcfile"
     } | numberer
     rc=$(cat "$rcfile" 2>/dev/null)
@@ -263,6 +282,9 @@ Usage:
   rocko.sh [run]        start the beacon (audio bring-up + transmitter + listener)
   rocko.sh photo [img]  classify one injury photo and exit (default: $PHOTO_IMAGE)
   rocko.sh help         this message
+
+Photo backend (env ROCKO_PHOTO_BACKEND): tflite (default, Pi oss.qnx.com model)
+or cnn (Said Elakad's in-repo PyTorch classifier under CNN/, needs torch).
 
 Every event line is numbered [#NNNN] with a timestamp and mirrored to $LOG.
 One Ctrl+C stops the beacon with the coil forced off.

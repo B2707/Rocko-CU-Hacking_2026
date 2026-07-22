@@ -77,6 +77,19 @@ class RockoLauncherTests(unittest.TestCase):
         self.assertNotEqual(proc.returncode, 0)
         self.assertIn("photo classifier not found", proc.stdout + proc.stderr)
 
+    def test_photo_cnn_backend_routes_to_said_cnn(self):
+        # ROCKO_PHOTO_BACKEND=cnn routes rocko.sh photo to Said Elakad's CNN
+        # predict script (stubbed here, so no torch needed) and propagates its
+        # exit code through the numbering pipe.
+        stub = os.path.join(self.tmp.name, "cnn_stub.py")
+        Path(stub).write_text("import sys\nprint('cnn backend ran')\nsys.exit(5)\n")
+        proc = self._run(
+            ["photo", "wound.jpg"],
+            self._env(ROCKO_PHOTO_BACKEND="cnn", ROCKO_CNN_PREDICT=stub),
+        )
+        self.assertEqual(proc.returncode, 5)
+        self.assertIn("cnn backend ran", proc.stdout + proc.stderr)
+
     def test_no_cleartext_password_in_script(self):
         # FIX B / review-bot block: the sudo password must never be embedded in
         # the script text. Guard against the old `echo qnxuser | sudo -S ...`.
