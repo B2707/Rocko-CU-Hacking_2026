@@ -45,6 +45,8 @@ flowchart TD
         CLS -->|phrase alone or unclear| SOS[SOS, all four flags]
         CLS -->|clear all-okay, no distress| CANCEL[cancel pending alert]
         CANCEL --> STT
+        CAM[camera photo] --> INJ{injury image classifier<br>CNN, 8 wound classes}
+        INJ -->|injured| FLAGS
         FLAGS --> TX[coil transmitter<br>3 repeats, 3 s gaps]
         SOS --> TX
         TIMER([120 s timer]) --> HB[heartbeat frame, all flags zero]
@@ -118,9 +120,10 @@ threshold. Decoded frames get a marker and a numbered log entry.
 
 ## Repository map
 
-- `TTS/` -- wake phrase gate, emergency classifier (C, compiled on the Pi), live listener script
+- `TTS/` -- wake phrase gate, emergency classifier (C, compiled on the Pi), live listener script, built by Amr (@Amrooosh)
 - `transmitter/` -- coil transmitter daemon, frame encoding, GPIO backend
 - `photo/` -- injury photo classifier (TFLite)
+- `CNN/` -- standalone injury image classifier: PyTorch training, evaluation, and prediction over 8 wound classes, built by Said Elakad (@saidel04)
 - `receiver/` -- surface capture, live dashboard, decoder
 - `bench/` -- early hardware bring up scripts and the CNN training script
 - `docs/equipment-codes.md` -- the frozen frame contract, both sides build against this
